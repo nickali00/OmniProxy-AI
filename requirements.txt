@@ -1,0 +1,8 @@
+aiosqlite>=0.21,<1
+cryptography>=44,<47
+fastapi>=0.115,<1
+httpx>=0.28,<1
+jinja2>=3.1,<4
+pydantic-settings>=2.8,<3
+tiktoken>=0.9,<1
+uvicorn[standard]>=0.34,<1

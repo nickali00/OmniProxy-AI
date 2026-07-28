@@ -1,0 +1,288 @@
+name: omni-proxy-ai
+
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8000}:8000"
+    environment:
+      DATABASE_PATH: ${DATABASE_PATH:-/data/omni_proxy.sqlite3}
+      BOOTSTRAP_API_KEY: ${BOOTSTRAP_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:8b}
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-10m}
+      OLLAMA_THINK: ${OLLAMA_THINK:-false}
+      OLLAMA_REQUEST_TIMEOUT_SECONDS: ${OLLAMA_REQUEST_TIMEOUT_SECONDS:-300}
+      TIKTOKEN_ENCODING: ${TIKTOKEN_ENCODING:-cl100k_base}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      BUILD_ENABLED: ${BUILD_ENABLED:-false}
+      CODEX_CLIENT_LABEL: ${CODEX_CLIENT_LABEL:-Codex CLI 0.145.0}
+      GEMINI_CLIENT_LABEL: ${GEMINI_CLIENT_LABEL:-Antigravity CLI 1.1.7}
+      CLAUDE_CLIENT_LABEL: ${CLAUDE_CLIENT_LABEL:-Claude Code 2.1.218}
+      CODEX_BROKER_URL: http://codex-broker:8788
+      GEMINI_BROKER_URL: http://antigravity-broker:8789
+      CLAUDE_BROKER_URL: http://claude-broker:8787
+      PROVIDER_VAULT_KEY: ${PROVIDER_VAULT_KEY:-}
+      PROVIDER_BROKER_TIMEOUT_SECONDS: ${PROVIDER_BROKER_TIMEOUT_SECONDS:-25}
+      PROVIDER_COMPLETION_TIMEOUT_SECONDS: ${PROVIDER_COMPLETION_TIMEOUT_SECONDS:-600}
+      MAINTENANCE_RUNNER_URL: http://maintenance-runner:8790
+      MAINTENANCE_WORKSPACE_NAME: ${MAINTENANCE_WORKSPACE_NAME:-OmniProxy AI}
+      DASHBOARD_ALLOWED_HOSTS: ${DASHBOARD_ALLOWED_HOSTS:-127.0.0.1,localhost,gateway}
+      PROVIDER_VAULT_KEY_PATH: ${PROVIDER_VAULT_KEY_PATH:-/vault/omniproxy-vault.key}
+    volumes:
+      - gateway_data:/data
+      - gateway_vault:/vault
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      codex-broker:
+        condition: service_healthy
+      antigravity-broker:
+        condition: service_healthy
+      claude-broker:
+        condition: service_healthy
+      maintenance-runner:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - default
+      - codex_link
+      - antigravity_link
+      - claude_link
+      - maintenance_link
+
+  maintenance-runner:
+    build:
+      context: .
+      dockerfile: maintenance-runner/Dockerfile
+    init: true
+    restart: unless-stopped
+    environment:
+      DOCKER_CONFIG: /tmp/docker-config
+    volumes:
+      - .:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8790/healthz', timeout=3).read()"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - maintenance_link
+
+  codex-broker:
+    build:
+      context: .
+      dockerfile: codex-broker/Dockerfile
+      args:
+        CODEX_CLI_VERSION: ${CODEX_CLI_VERSION:-0.145.0}
+    init: true
+    restart: unless-stopped
+    environment:
+      CODEX_AUTH_TTL_MS: ${CODEX_AUTH_TTL_MS:-600000}
+      PROVIDER_EXECUTION_TIMEOUT_MS: ${PROVIDER_EXECUTION_TIMEOUT_MS:-600000}
+    volumes:
+      - codex_auth:/home/codex/.codex
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8788/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - codex_link
+      - codex_egress
+
+  claude-broker:
+    build:
+      context: .
+      dockerfile: claude-broker/Dockerfile
+      args:
+        CLAUDE_CODE_VERSION: ${CLAUDE_CODE_VERSION:-2.1.218}
+    init: true
+    restart: unless-stopped
+    environment:
+      CLAUDE_CONFIG_DIR: /home/claude/.claude
+      CLAUDE_AUTH_TTL_MS: ${CLAUDE_AUTH_TTL_MS:-300000}
+      PROVIDER_EXECUTION_TIMEOUT_MS: ${PROVIDER_EXECUTION_TIMEOUT_MS:-600000}
+    volumes:
+      - claude_auth:/home/claude/.claude
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8787/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - claude_link
+      - claude_egress
+
+  antigravity-broker:
+    build:
+      context: .
+      dockerfile: antigravity-broker/Dockerfile
+      args:
+        ANTIGRAVITY_CLI_VERSION: ${ANTIGRAVITY_CLI_VERSION:-1.1.7}
+        ANTIGRAVITY_CLI_SHA256_AMD64: ${ANTIGRAVITY_CLI_SHA256_AMD64:-946cd06258d0ede72d0311550c914315798821f6a397f53ac760919826a19af4}
+        ANTIGRAVITY_CLI_SHA256_ARM64: ${ANTIGRAVITY_CLI_SHA256_ARM64:-0d6d488851745e80e69b8935d063e742945811b47111994b1a6dbd27df3010d5}
+    init: true
+    restart: unless-stopped
+    environment:
+      ANTIGRAVITY_AUTH_TTL_MS: ${ANTIGRAVITY_AUTH_TTL_MS:-600000}
+      PROVIDER_EXECUTION_TIMEOUT_MS: ${PROVIDER_EXECUTION_TIMEOUT_MS:-600000}
+    volumes:
+      - antigravity_auth:/home/antigravity/.gemini
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:8789/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    networks:
+      - antigravity_link
+      - antigravity_egress
+
+  ollama:
+    profiles: ["managed-ollama"]
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    gpus: all
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  ollama-pull:
+    profiles: ["managed-ollama"]
+    image: ollama/ollama:latest
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    command: ["pull", "${OLLAMA_MODEL:-qwen3:8b}"]
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+volumes:
+  gateway_data:
+  gateway_vault:
+  ollama_data:
+  codex_auth:
+  claude_auth:
+  antigravity_auth:
+
+networks:
+  default:
+    name: ${AI_GATEWAY_NETWORK:-omni-proxy-ai-network}
+  codex_link:
+    internal: true
+  antigravity_link:
+    internal: true
+  claude_link:
+    internal: true
+  maintenance_link:
+    internal: true
+  codex_egress:
+  antigravity_egress:
+  claude_egress:

@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>OmniProxy AI · Connessioni provider</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/dashboard.css') }}?v=public-i18n-v1">
+    <script src="{{ url_for('static', path='/dashboard-i18n.js') }}?v=public-i18n-v1" defer></script>
+    <script src="{{ url_for('static', path='/dashboard.js') }}?v=public-i18n-v1" defer></script>
+  </head>
+  <body data-build-enabled="{{ 'true' if build_enabled else 'false' }}">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="/" aria-label="OmniProxy AI">
+          <span class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </span>
+          <span>
+            <strong>OmniProxy</strong>
+            <small>AI Gateway</small>
+          </span>
+        </a>
+
+        <nav class="main-nav" aria-label="Main navigation"
+          data-i18n-aria-label="nav.main">
+          <button class="nav-item active" type="button"
+            data-view-target="connections">
+            <span class="nav-icon">⌁</span>
+            <span data-i18n="nav.connections">Connections</span>
+            <span class="nav-count">{{ connected_count }}</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="models">
+            <span class="nav-icon">◫</span>
+            <span data-i18n="nav.models">Models</span>
+            <span class="nav-model-count">—</span>
+          </button>
+          <button class="nav-item" type="button" data-view-target="apis">
+            <span class="nav-icon">⌘</span>
+            <span data-i18n="nav.apis">Local APIs</span>
+            <span class="nav-api-count">0</span>
+          </button>
+          {% if build_enabled %}
+          <button class="nav-item" type="button" data-view-target="build">
+            <span class="nav-icon">◇</span>
+            Build
+            <span class="nav-build-count">0</span>
+          </button>
+          {% endif %}
+          <button class="nav-item" type="button" data-view-target="usage">
+            <span class="nav-icon">↗</span>
+            <span data-i18n="nav.usage">Usage</span>
+            <span class="nav-usage-count">0</span>
+          </button>
+        </nav>
+
+        <div class="sidebar-status">
+          <div class="status-orbit"><span></span></div>
+          <div>
+            <strong data-i18n="status.gatewayOnline">Gateway online</strong>
+            <small>localhost:{{ gateway_port }}</small>
+          </div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div class="mobile-brand">
+            <span class="brand-mark mini"><span></span><span></span><span></span></span>
+            OmniProxy
+          </div>
+          <div class="mobile-section-nav" aria-label="Sections"
+            data-i18n-aria-label="nav.sections">
+            <button class="active" type="button"
+              data-view-target="connections" aria-label="Connections"
+              data-i18n-aria-label="nav.connections">⌁</button>
+            <button type="button"
+              data-view-target="models" aria-label="Models"
+              data-i18n-aria-label="nav.models">◫</button>
+            <button type="button"
+              data-view-target="apis" aria-label="Local APIs"
+              data-i18n-aria-label="nav.apis">⌘</button>
+            {% if build_enabled %}
+            <button type="button"
+              data-view-target="build" aria-label="Build">◇</button>
+            {% endif %}
+            <button type="button"
+              data-view-target="usage" aria-label="Usage"
+              data-i18n-aria-label="nav.usage">↗</button>
+          </div>
+          <label class="language-picker" for="language-select">
+            <span aria-hidden="true">◎</span>
+            <select id="language-select" aria-label="Language"
+              data-i18n-aria-label="language.label">
+              <option value="en">EN</option>
+              <option value="it">IT</option>
+              <option value="es">ES</option>
+              <option value="fr">FR</option>
+            </select>
+          </label>
+          <div class="privacy-pill">
+            <span class="privacy-dot"></span>
+            <span data-i18n="status.privateLocal">Private · localhost only</span>
+          </div>
+          <button class="avatar" type="button" aria-label="Local profile"
+            data-i18n-aria-label="status.localProfile">N</button>
+        </header>
+
+        <section class="content">
+          <div class="view-panel" data-view-panel="connections">
+          <div class="hero">
+            <div class="hero-copy">
+              <p class="overline"><span>01</span>
+                <span data-i18n="connections.eyebrow">Initial setup</span>
+              </p>
+              <h1><span data-i18n="connections.title">Connect your</span><br>
+                <em data-i18n="connections.titleAccent">intelligence.</em></h1>
+              <p class="hero-text" data-i18n="connections.intro">Bring local
+                models and AI subscriptions together in one private gateway.
+                Clients and sessions live inside OmniProxy containers.</p>
+            </div>
+          </div>
+
+          <section class="providers-section" aria-labelledby="providers-title">
+            <div class="section-heading">
+              <div>
+                <p class="section-kicker" data-i18n="connections.ecosystem">Your ecosystem</p>
+                <h2 id="providers-title" data-i18n="connections.providers">Provider connections</h2>
+              </div>
+              <div class="connection-summary" id="connection-summary"
+                data-connected-count="{{ connected_count }}"
+                data-total-providers="{{ total_providers }}">
+                <span id="connection-count">{{ connected_count }}/{{ total_providers }}</span>
+                <span data-i18n="connections.connected">connected</span>
+              </div>
+            </div>
+
+            <div class="provider-grid">
+              {% for provider in providers %}
+              <article class="provider-card accent-{{ provider.accent }}"
+                data-provider="{{ provider.id }}"
+                data-provider-connected="{{ 'true' if provider.state in ['connected', 'detected'] else 'false' }}">
+                <div class="card-glow"></div>
+                <div class="provider-top">
+                  <div class="provider-logo logo-{{ provider.id }}" aria-hidden="true">
+                    {% if provider.id == "ollama" %}◎
+                    {% elif provider.id == "codex" %}✣
+                    {% elif provider.id == "gemini" %}✦
+                    {% else %}A{% endif %}
+                  </div>
+                  <span class="provider-state state-{{ provider.state }}" data-provider-state>
+                    <i></i>{{ provider.state_label }}
+                  </span>
+                </div>
+
+                <p class="provider-eyebrow">{{ provider.eyebrow }}</p>
+                <h3>{{ provider.name }}</h3>
+                <p class="provider-description"
+                  data-i18n="provider.{{ provider.id }}.description">{{ provider.description }}</p>
+
+                <div class="provider-meta">
+                  <div>
+                    <small data-i18n="common.access">Access</small>
+                    <strong data-i18n="provider.{{ provider.id }}.auth">{{ provider.auth_method }}</strong>
+                  </div>
+                  <div>
+                    <small data-i18n="common.client">Client</small>
+                    <strong>{{ provider.client_label }}</strong>
+                  </div>
+                </div>
+
+                <button
+                  class="provider-action"
+                  type="button"
+                  data-open-provider="{{ provider.id }}"
+                  data-provider-name="{{ provider.name }}"
+                  data-provider-state="{{ provider.state_label }}"
+                  data-provider-auth="{{ provider.auth_method }}"
+                  data-provider-client="{{ provider.client_label }}"
+                  data-provider-action
+                >
+                  <span data-provider-action-label>{{ provider.action_label }}</span>
+                  <span>↗</span>
+                </button>
+              </article>
+              {% endfor %}
+            </div>
+          </section>
+          </div>
+
+          <div class="view-panel workspace-view" data-view-panel="models" hidden>
+            <header class="workspace-heading">
+              <div>
+                <p class="overline"><span>02</span>
+                  <span data-i18n="models.eyebrow">Live catalog</span>
+                </p>
+                <h1><span data-i18n="models.title">Choose your</span><br>
+                  <em data-i18n="models.titleAccent">model.</em></h1>
+                <p data-i18n="models.intro">Select a connected provider to see
+                  only the models it currently exposes.</p>
+              </div>
+              <button class="quiet-action" type="button" id="refresh-models">
+                <span data-i18n="models.refresh">Refresh catalog</span>
+                <span>↻</span>
+              </button>
+            </header>
+
+            <div class="catalog-toolbar">
+              <div class="provider-filters" id="provider-filters"
+                aria-label="Choose provider"
+                data-i18n-aria-label="models.chooseProvider"></div>
+              <span id="catalog-summary" data-i18n="models.loading">Loading models…</span>
+            </div>
+            <div class="model-catalog-grid" id="model-catalog-grid"></div>
+          </div>
+
+          <div class="view-panel workspace-view" data-view-panel="apis" hidden>
+            <header class="workspace-heading">
+              <div>
+                <p class="overline"><span>03</span>
+                  <span data-i18n="apis.eyebrow">Stable endpoints</span>
+                </p>
+                <h1><span data-i18n="apis.title">Your APIs,</span><br>
+                  <em data-i18n="apis.titleAccent">always consistent.</em></h1>
+                <p data-i18n="apis.intro">Each key locks the saved provider,
+                  model and reasoning. Change the profile without changing
+                  your client.</p>
+              </div>
+              <button class="primary-action" type="button" id="create-api">
+                <span data-i18n="apis.new">New API</span>
+                <span>＋</span>
+              </button>
+            </header>
+
+            <div class="api-overview">
+              <div class="api-endpoint">
+                <div class="api-endpoint-copy">
+                  <small data-i18n="apis.baseUrl">Gateway base URL · OpenAI-compatible</small>
+                  <code id="gateway-base-url">http://gateway:8000/v1</code>
+                </div>
+                <button class="api-copy-button" type="button"
+                  id="copy-gateway-base-url" data-copy-target="gateway-base-url"
+                  aria-label="Copy gateway base URL">
+                  <span aria-hidden="true">⧉</span>
+                  <span data-i18n="apis.copyUrl">Copy URL</span>
+                </button>
+              </div>
+              <p data-i18n="apis.keyNotice">The key is shown once. The model
+                slug remains stable after edits.</p>
+            </div>
+
+            <div class="managed-api-list" id="managed-api-list"></div>
+            <div class="empty-state" id="managed-api-empty" hidden>
+              <span>⌘</span>
+              <h2 data-i18n="apis.emptyTitle">No API configured</h2>
+              <p data-i18n="apis.emptyCopy">Choose an available model and create your first local key.</p>
+              <button type="button" data-empty-create-api
+                data-i18n="apis.emptyAction">Create the first API</button>
+            </div>
+          </div>
+
+          <div class="view-panel workspace-view usage-view"
+            data-view-panel="usage" hidden>
+            <header class="workspace-heading">
+              <div>
+                <p class="overline"><span>04</span>
+                  <span data-i18n="usage.eyebrow">Private telemetry</span>
+                </p>
+                <h1><span data-i18n="usage.title">Every token,</span><br>
+                  <em data-i18n="usage.titleAccent">under control.</em></h1>
+                <p data-i18n="usage.intro">Requests, tokens and latency are
+                  read from the local database. Prompts, responses and API
+                  keys are never displayed.</p>
+              </div>
+              <button class="quiet-action" type="button" id="refresh-usage">
+                <span data-i18n="usage.refresh">Refresh usage</span>
+                <span>↻</span>
+              </button>
+            </header>
+
+            <div class="usage-toolbar">
+              <label>
+                <span data-i18n="usage.period">Period</span>
+                <select id="usage-period">
+                  <option value="24h" data-i18n="usage.period24h">Last 24 hours</option>
+                  <option value="7d" selected data-i18n="usage.period7d">Last 7 days</option>
+                  <option value="30d" data-i18n="usage.period30d">Last 30 days</option>
+                  <option value="all" data-i18n="usage.periodAll">All history</option>
+                </select>
+              </label>
+              <label>
+                <span data-i18n="usage.localApi">Local API</span>
+                <select id="usage-api-filter">
+                  <option value="" data-i18n="usage.allApis">All APIs</option>
+                </select>
+              </label>
+              <label>
+                <span data-i18n="usage.provider">Provider</span>
+                <select id="usage-provider-filter">
+                  <option value="" data-i18n="usage.allProviders">All providers</option>
+                </select>
+              </label>
+              <p id="usage-status" role="status"
+                data-i18n="usage.loading">Loading usage…</p>
+            </div>
+
+            <section class="usage-panel provider-quota-panel">
+              <header>
+                <div>
+                  <small data-i18n="quota.liveAvailability">Live availability</small>
+                  <h2 data-i18n="quota.title">Remaining quota by provider</h2>
+                </div>
+                <span id="provider-quota-status"
+                  data-i18n="quota.updating">refreshing…</span>
+              </header>
+              <div class="provider-quota-grid" id="provider-quota-grid"
+                aria-live="polite">
+                <article class="provider-quota-card quota-loading">
+                  <strong data-i18n="quota.loading">Loading provider quotas…</strong>
+                </article>
+              </div>
+              <p class="provider-quota-note" data-i18n="quota.note">Percentages
+                come from official clients. OmniProxy never turns locally
+                recorded tokens into quota estimates.</p>
+            </section>
+
+            <div class="usage-kpi-grid">
+              <article class="usage-kpi accent-mint">
+                <small data-i18n="usage.requests">Requests</small>
+                <strong id="usage-request-count">0</strong>
+                <span id="usage-success-rate">0% riuscite</span>
+              </article>
+              <article class="usage-kpi accent-sky">
+                <small data-i18n="usage.totalTokens">Total tokens</small>
+                <strong id="usage-total-tokens">0</strong>
+                <span id="usage-token-split">0 input · 0 output</span>
+              </article>
+              <article class="usage-kpi accent-amber">
+                <small data-i18n="usage.averageLatency">Average latency</small>
+                <strong id="usage-average-latency">0 ms</strong>
+                <span data-i18n="usage.endToEnd">end-to-end time</span>
+              </article>
+              <article class="usage-kpi accent-coral">
+                <small data-i18n="usage.errors">Errors</small>
+                <strong id="usage-failed-count">0</strong>
+                <span id="usage-error-rate">0% delle richieste</span>
+              </article>
+            </div>
+
+            <section class="usage-panel usage-timeline-panel">
+              <header>
+                <div>
+                  <small data-i18n="usage.trend">Trend</small>
+                  <h2 data-i18n="usage.tokensOverTime">Tokens over time</h2>
+                </div>
+                <span id="usage-timeline-total">0 token</span>
+              </header>
+              <div class="usage-timeline" id="usage-timeline"></div>
+              <p class="usage-empty" id="usage-timeline-empty" hidden>
+                <span data-i18n="usage.noPeriodData">No usage in the selected period.</span>
+              </p>
+            </section>
+
+            <div class="usage-breakdown-grid">
+              <section class="usage-panel">
+                <header>
+                  <div>
+                    <small data-i18n="usage.distribution">Distribution</small>
+                    <h2 data-i18n="usage.byApi">By local API</h2>
+                  </div>
+                </header>
+                <div class="usage-ranking" id="usage-api-ranking"></div>
+              </section>
+              <section class="usage-panel">
+                <header>
+                  <div>
+                    <small data-i18n="usage.routing">Routing</small>
+                    <h2 data-i18n="usage.byProvider">By provider</h2>
+                  </div>
+                </header>
+                <div class="usage-ranking usage-provider-ranking"
+                  id="usage-provider-ranking"></div>
+              </section>
+            </div>
+
+            <section class="usage-panel usage-requests-panel">
+              <header>
+                <div>
+                  <small data-i18n="usage.localLog">Local log</small>
+                  <h2 data-i18n="usage.recentRequests">Recent requests</h2>
+                </div>
+                <span data-i18n="usage.noPromptsStored">no prompt stored</span>
+              </header>
+              <div class="usage-table-wrap">
+                <table class="usage-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="usage.date">Date</th>
+                      <th data-i18n="usage.api">API</th>
+                      <th data-i18n="usage.providerModel">Provider / model</th>
+                      <th data-i18n="usage.tokens">Tokens</th>
+                      <th data-i18n="usage.latency">Latency</th>
+                      <th data-i18n="usage.status">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usage-request-rows"></tbody>
+                </table>
+              </div>
+              <p class="usage-empty" id="usage-requests-empty" hidden>
+                <span data-i18n="usage.noRequests">No requests to display.</span>
+              </p>
+            </section>
+          </div>
+
+          {% if build_enabled %}
+          <div class="view-panel workspace-view" data-view-panel="build" hidden>
+            <header class="workspace-heading build-heading">
+              <div>
+                <p class="overline"><span>05</span> Workspace orchestrato</p>
+                <h1>Dall’idea al<br><em>progetto.</em></h1>
+                <p>
+                  Assegna un modello all’analisi e uno alla costruzione.
+                  OmniProxy comprende l’idea, prepara prompt migliori e
+                  organizza il lavoro in fasi verificabili.
+                </p>
+              </div>
+              <button class="primary-action" type="button" id="new-build-project">
+                Nuovo progetto
+                <span>＋</span>
+              </button>
+            </header>
+
+            <div class="build-layout build-workspace-container" id="workspaceContainer">
+              <aside class="build-project-rail" id="sidebarProjects">
+                <div class="build-rail-heading">
+                  <div>
+                    <small>Workspace</small>
+                    <strong>I tuoi progetti</strong>
+                  </div>
+                  <div class="build-rail-actions">
+                    <span class="build-project-total">0</span>
+                    <button class="build-sidebar-toggle" id="toggleSidebarBtn"
+                      type="button" title="Nascondi progetti"
+                      aria-label="Nascondi pannello progetti"
+                      aria-expanded="true" aria-controls="sidebarProjects">
+                      ◀
+                    </button>
+                  </div>
+                </div>
+                <div class="build-project-list" id="build-project-list"></div>
+                <nav class="build-pipeline-nav" aria-label="Fasi della pipeline">
+                  <p>Fasi della pipeline</p>
+                  <a href="#build-artifact-analysis">
+                    <span>01</span>
+                    <strong>Analisi idea</strong>
+                  </a>
+                  <a href="#build-artifact-builder-brief">
+                    <span>02</span>
+                    <strong>Brief tecnico</strong>
+                  </a>
+                  <a href="#build-artifact-roadmap">
+                    <span>03</span>
+                    <strong>Roadmap</strong>
+                  </a>
+                  <a href="#build-artifact-future-features">
+                    <span>04</span>
+                    <strong>Future feature</strong>
+                  </a>
+                </nav>
+
+                <div class="build-sidebar-tools" id="build-sidebar-tools"
+                  hidden aria-labelledby="build-sidebar-tools-title">
+                  <div class="build-sidebar-tools-heading">
+                    <span aria-hidden="true">✦</span>
+                    <div>
+                      <small>Input del progetto</small>
+                      <strong id="build-sidebar-tools-title">Idea e configurazione</strong>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+
+              <div class="resizer build-resizer" id="resizer1"
+                role="separator" aria-orientation="vertical"
+                aria-valuemin="150" aria-valuemax="400"
+                aria-valuenow="280" aria-label="Ridimensiona pannello progetti"
+                aria-controls="sidebarProjects"
+                tabindex="0"></div>
+
+              <section class="build-stage" id="mainArtifact">
+                <button class="show-sidebar-btn hidden" id="showSidebarBtn"
+                  type="button" title="Mostra strumenti progetto"
+                  aria-controls="sidebarProjects" aria-expanded="false">
+                  ▶ Strumenti progetto
+                </button>
+                <div class="build-empty" id="build-empty">
+                  <span>◇</span>
+                  <h2>Trasforma un’idea in un piano eseguibile</h2>
+                  <p>
+                    Collega una cartella oppure inizia da zero. I modelli
+                    lavorano con ruoli separati e non condensano tutto in un
+                    unico prompt.
+                  </p>
+                  <button type="button" data-new-build-project>
+                    Crea il primo progetto
+                  </button>
+                </div>
+
+                <div class="build-workspace" id="build-workspace" hidden>
+                  <header class="build-workspace-header">
+                    <div>
+                      <p class="section-kicker">Progetto attivo</p>
+                      <h2 id="build-project-title">Progetto</h2>
+                      <div class="build-folder-meta">
+                        <span id="build-folder-name">Nessuna cartella</span>
+                        <span id="build-file-count">0 file</span>
+                      </div>
+                    </div>
+                    <div class="build-header-actions">
+                      <button type="button" id="build-autopilot"
+                        aria-pressed="false">
+                        <span aria-hidden="true">●</span>
+                        Autopilot disattivo
+                      </button>
+                      <button type="button" id="sync-build-folder">
+                        Sincronizza cartella
+                      </button>
+                      <button type="button" id="build-docker-update" hidden>
+                        Aggiorna Docker
+                      </button>
+                      <button type="button" id="delete-build-project">
+                        Elimina
+                      </button>
+                    </div>
+                  </header>
+
+                  <div class="build-config-grid">
+                    <section class="build-idea-card">
+                      <div class="build-card-heading">
+                        <span>01</span>
+                        <div>
+                          <small>Punto di partenza</small>
+                          <h3>Racconta l’idea</h3>
+                        </div>
+                      </div>
+                      <textarea id="build-idea" maxlength="12000"
+                        placeholder="Descrivi cosa vuoi costruire, per chi e quale problema deve risolvere…"></textarea>
+                    </section>
+
+                    <section class="build-role-card role-analyst">
+                      <div class="build-card-heading">
+                        <span>02</span>
+                        <div>
+                          <small>Strategia e prompt</small>
+                          <h3>Analista idea</h3>
+                        </div>
+                      </div>
+                      <p>
+                        Chiarisce requisiti, rischi e scrive i prompt
+                        operativi destinati al Builder.
+                      </p>
+                      <div class="build-model-fields">
+                        <label>
+                          <span>Stile</span>
+                          <select id="build-analyst-mode">
+                            <option value="schematic">
+                              Schematico · pochi token
+                            </option>
+                            <option value="detailed">
+                              Dettagliato · analisi completa
+                            </option>
+                          </select>
+                        </label>
+                        <label>
+                          <span>Provider</span>
+                          <select id="build-analyst-provider"></select>
+                        </label>
+                        <label>
+                          <span>Modello</span>
+                          <select id="build-analyst-model"></select>
+                        </label>
+                        <label>
+                          <span>Reasoning</span>
+                          <select id="build-analyst-reasoning"></select>
+                        </label>
+                      </div>
+                    </section>
+
+                    <section class="build-role-card role-builder">
+                      <div class="build-card-heading">
+                        <span>03</span>
+                        <div>
+                          <small>Esecuzione guidata</small>
+                          <h3>Builder</h3>
+                        </div>
+                      </div>
+                      <p>
+                        Riceve una fase alla volta, usa lo snapshot del
+                        progetto e propone modifiche verificabili.
+                      </p>
+                      <div class="build-model-fields">
+                        <label>
+                          <span>Provider</span>
+                          <select id="build-builder-provider"></select>
+                        </label>
+                        <label>
+                          <span>Modello</span>
+                          <select id="build-builder-model"></select>
+                        </label>
+                        <label>
+                          <span>Reasoning</span>
+                          <select id="build-builder-reasoning"></select>
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div class="build-orchestrator-bar">
+                    <div>
+                      <span class="build-pipeline-dot"></span>
+                      <p>
+                        <strong>Pipeline in 4 passaggi</strong>
+                        comprensione → brief → roadmap → evoluzioni
+                      </p>
+                    </div>
+                    <p class="build-feedback" id="build-feedback"
+                      aria-live="polite"></p>
+                    <button type="button" class="quiet-action"
+                      id="save-build-project">Salva configurazione</button>
+                    <button type="button" class="primary-action"
+                      id="run-build-plan">Analizza e crea le fasi</button>
+                  </div>
+
+                  <section class="build-phase-section"
+                    id="build-phase-section">
+                    <header>
+                      <div>
+                        <p class="section-kicker">Catena del Builder</p>
+                        <h2>Checklist delle fasi</h2>
+                      </div>
+                      <div class="build-phase-heading-actions">
+                        <button type="button" id="build-restart-chain" hidden>
+                          Riprendi dall’Analista
+                        </button>
+                        <strong id="build-phase-progress">Nessuna fase</strong>
+                      </div>
+                    </header>
+                    <ol class="build-phase-list" id="build-phase-list">
+                      <li class="empty">
+                        La checklist verrà creata dall’Analista.
+                      </li>
+                    </ol>
+                  </section>
+
+                  <section class="build-artifacts-section artifact-viewer">
+                    <div class="section-heading">
+                      <div>
+                        <p class="section-kicker">Output persistenti</p>
+                        <h1>Piano di costruzione</h1>
+                      </div>
+                    </div>
+                    <div class="build-artifact-grid" id="build-artifact-grid">
+                      <article id="build-artifact-analysis"
+                        data-build-artifact="analysis">
+                        <span>01 · Analisi</span>
+                        <h2>Comprensione dell’idea</h2>
+                        <pre>Nessuna analisi generata.</pre>
+                      </article>
+                      <article id="build-artifact-builder-brief"
+                        data-build-artifact="builder_brief">
+                        <span>02 · Brief</span>
+                        <h2>Consegna al Builder</h2>
+                        <pre>Nessun brief generato.</pre>
+                      </article>
+                      <article id="build-artifact-roadmap"
+                        data-build-artifact="roadmap">
+                        <span>03 · Fasi</span>
+                        <h2>Roadmap e prompt separati</h2>
+                        <pre>Nessuna roadmap generata.</pre>
+                      </article>
+                      <article id="build-artifact-future-features"
+                        data-build-artifact="future_features">
+                        <span>04 · Futuro</span>
+                        <h2>Migliorie e nuove feature</h2>
+                        <pre>Nessun suggerimento generato.</pre>
+                      </article>
+                    </div>
+                  </section>
+
+                </div>
+              </section>
+
+              <div class="resizer build-resizer" id="resizer2"
+                role="separator" aria-orientation="vertical"
+                aria-valuemin="250" aria-valuemax="600"
+                aria-valuenow="400" aria-label="Ridimensiona pannello chat"
+                aria-controls="chatPanel"
+                tabindex="0"></div>
+
+              <section class="build-chat-section" id="chatPanel" hidden>
+                    <header>
+                      <div>
+                        <p class="section-kicker">Chat del progetto</p>
+                        <h2>Continua a ragionare</h2>
+                      </div>
+                      <div class="build-chat-controls">
+                        <label>
+                          <span>Parla con</span>
+                          <select id="build-chat-lane">
+                            <option value="analyst">Analista idea</option>
+                            <option value="builder">Builder</option>
+                          </select>
+                        </label>
+                        <button type="button" id="build-handoff">
+                          Passa al Builder <span>→</span>
+                        </button>
+                      </div>
+                    </header>
+                    <div class="build-chat-messages" id="build-chat-messages">
+                      <p class="build-chat-placeholder">
+                        I messaggi restano associati a questo progetto.
+                      </p>
+                    </div>
+                    <form class="build-chat-form" id="build-chat-form">
+                      <textarea id="build-chat-input" maxlength="8000"
+                        placeholder="Chiedi di chiarire l’idea oppure avvia una fase con il Builder…"
+                        required></textarea>
+                      <button type="submit">Invia <span>↑</span></button>
+                    </form>
+                  </section>
+            </div>
+            <div class="build-agent-activity" id="build-agent-activity"
+              role="status" aria-live="polite" hidden>
+              <span class="build-agent-activity-dot" aria-hidden="true"></span>
+              <div>
+                <strong id="build-agent-activity-title">
+                  Builder sta lavorando
+                </strong>
+                <small id="build-agent-activity-message">
+                  Sta preparando la risposta.
+                </small>
+              </div>
+              <span class="build-agent-activity-time"
+                id="build-agent-activity-time">0s</span>
+            </div>
+          </div>
+          {% endif %}
+
+          <footer>
+            <span data-i18n="footer.phase">OmniProxy AI · Phase 1</span>
+            <span data-i18n="footer.privacy">No token is displayed or copied to the browser</span>
+          </footer>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="provider-dialog" id="provider-dialog">
+      <button class="dialog-close" type="button" aria-label="Close"
+        data-i18n-aria-label="dialog.close">×</button>
+      <p class="dialog-kicker" data-i18n="dialog.connectionDetails">Connection details</p>
+      <h2 id="dialog-title">Provider</h2>
+      <div class="dialog-status" id="dialog-status"></div>
+      <dl>
+        <div><dt data-i18n="dialog.method">Method</dt><dd id="dialog-auth"></dd></div>
+        <div><dt data-i18n="dialog.localClient">Local client</dt><dd id="dialog-client"></dd></div>
+      </dl>
+      <div class="dialog-note" id="dialog-note"></div>
+      <div class="auth-flow" id="auth-flow" hidden>
+        <div class="auth-progress" id="auth-progress" role="status">
+          <span class="auth-spinner" aria-hidden="true"></span>
+          <span id="auth-progress-text"
+            data-i18n="dialog.preparingSecureSignIn">Preparing secure sign-in…</span>
+        </div>
+        <a class="official-auth-link" id="official-auth-link"
+          href="#" target="_blank" rel="noopener noreferrer" hidden>
+          <span data-i18n="dialog.openOfficialPage">Open official page</span>
+          <span>↗</span>
+        </a>
+        <div class="device-code-panel" id="device-code-panel" hidden>
+          <span data-i18n="dialog.chatgptCode">Code to enter on ChatGPT</span>
+          <div>
+            <code id="device-code"></code>
+            <button type="button" id="copy-device-code"
+              data-i18n="dialog.copy">Copy</button>
+          </div>
+          <small data-i18n="dialog.codeExpiry">The code expires and is not a password or API token.</small>
+        </div>
+        <form class="auth-code-form" id="auth-code-form" hidden>
+          <label for="auth-code">
+            <span id="auth-code-label" data-i18n="dialog.providerCode">Did the provider show you a code?</span>
+            <small id="auth-code-hint" data-i18n="dialog.codeHint">Paste it here. It will not be saved.</small>
+          </label>
+          <div>
+            <input id="auth-code" name="code" type="password"
+              minlength="8" maxlength="8192" autocomplete="one-time-code"
+              spellcheck="false" required placeholder="One-time code"
+              data-i18n-placeholder="dialog.oneTimeCode">
+            <button type="submit" data-i18n="dialog.verify">Verify</button>
+          </div>
+        </form>
+        <p class="auth-feedback" id="auth-feedback" aria-live="polite"></p>
+      </div>
+      <div class="dialog-actions">
+        <button class="dialog-secondary" type="button"
+          id="dialog-secondary" hidden
+          data-i18n="dialog.cancelSignIn">Cancel sign-in</button>
+        <button class="dialog-primary" type="button"
+          id="dialog-primary" data-i18n="dialog.understood">Got it</button>
+      </div>
+    </dialog>
+
+    <dialog class="provider-dialog api-dialog" id="api-dialog">
+      <button class="dialog-close" type="button" data-api-dialog-close
+        aria-label="Close" data-i18n-aria-label="dialog.close">×</button>
+
+      <form id="api-config-form">
+        <input type="hidden" id="api-config-id">
+        <p class="dialog-kicker" data-i18n="apiDialog.constrained">Locked configuration</p>
+        <h2 id="api-dialog-title" data-i18n="apiDialog.new">New API</h2>
+        <p class="api-form-intro" data-i18n="apiDialog.intro">The client can
+          use only the route selected here.</p>
+
+        <div class="api-form-grid">
+          <label>
+            <span data-i18n="apiDialog.name">API name</span>
+            <input id="api-name" name="name" required minlength="2"
+              maxlength="80" autocomplete="off"
+              placeholder="e.g. Accounting assistant"
+              data-i18n-placeholder="apiDialog.namePlaceholder">
+          </label>
+          <label>
+            <span data-i18n="apiDialog.provider">Provider</span>
+            <select id="api-provider" name="provider" required></select>
+          </label>
+          <label>
+            <span data-i18n="apiDialog.model">Model</span>
+            <select id="api-model" name="model" required></select>
+          </label>
+          <label>
+            <span data-i18n="apiDialog.reasoning">Reasoning</span>
+            <select id="api-reasoning" name="reasoning_effort" required></select>
+          </label>
+        </div>
+
+        <div class="api-routing-preview">
+          <span data-i18n="apiDialog.permanentRouting">Permanent routing</span>
+          <strong id="api-routing-preview"
+            data-i18n="apiDialog.selectModel">Select a model</strong>
+        </div>
+        <p class="auth-feedback" id="api-form-feedback"
+          aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="dialog-secondary" type="button"
+            data-api-dialog-close data-i18n="apiDialog.cancel">Cancel</button>
+          <button class="dialog-primary" type="submit" id="api-save">
+            <span data-i18n="apiDialog.create">Create API</span>
+          </button>
+        </div>
+      </form>
+
+      <div class="api-secret-result" id="api-secret-result" hidden>
+        <p class="dialog-kicker" data-i18n="apiDialog.created">API created</p>
+        <h2 data-i18n="apiDialog.saveNow">Save the key now.</h2>
+        <p data-i18n="apiDialog.secretNotice">For security, it cannot be displayed again.</p>
+        <div class="secret-field">
+          <code id="new-api-secret"></code>
+          <button class="api-copy-button secret-copy-button" type="button"
+            id="copy-api-secret" aria-label="Copy API key">
+            <span data-i18n="apiDialog.copyKey">Copy key</span></button>
+        </div>
+        <dl>
+          <div><dt>Base URL</dt><dd id="new-api-base-url"></dd></div>
+          <div><dt>Model</dt><dd id="new-api-model"></dd></div>
+        </dl>
+        <button class="dialog-primary" type="button"
+          id="secret-result-close"
+          data-i18n="apiDialog.saved">I saved the key</button>
+      </div>
+    </dialog>
+
+    {% if build_enabled %}
+    <dialog class="provider-dialog build-project-dialog"
+      id="build-project-dialog">
+      <button class="dialog-close" type="button"
+        data-build-dialog-close aria-label="Chiudi">×</button>
+      <form id="build-project-form">
+        <p class="dialog-kicker">Workspace Build</p>
+        <h2>Nuovo progetto</h2>
+        <p class="api-form-intro">
+          La cartella viene letta dal browser solo dopo il tuo consenso.
+          Segreti, dipendenze e file binari vengono esclusi.
+        </p>
+        <div class="build-dialog-grid">
+          <label>
+            <span>Nome progetto</span>
+            <input id="build-new-name" required minlength="2" maxlength="80"
+              placeholder="es. Portale gare ANAC">
+          </label>
+          <div class="build-folder-picker">
+            <span>Cartella progetto</span>
+            <button type="button" id="pick-build-folder">
+              Scegli cartella
+              <span>⌁</span>
+            </button>
+            <small id="build-picked-folder">
+              Puoi anche iniziare senza cartella.
+            </small>
+            <input id="build-folder-fallback" type="file"
+              webkitdirectory multiple hidden>
+          </div>
+          <label class="build-dialog-idea">
+            <span>Idea iniziale</span>
+            <textarea id="build-new-idea" maxlength="12000"
+              placeholder="Descrivi brevemente cosa vuoi costruire…"></textarea>
+          </label>
+        </div>
+        <div class="build-dialog-roles">
+          <fieldset>
+            <legend>Analista idea</legend>
+            <select id="build-new-analyst-mode">
+              <option value="schematic">Schematico · pochi token</option>
+              <option value="detailed">Dettagliato · analisi completa</option>
+            </select>
+            <select id="build-new-analyst-provider"></select>
+            <select id="build-new-analyst-model"></select>
+            <select id="build-new-analyst-reasoning"></select>
+          </fieldset>
+          <fieldset>
+            <legend>Builder</legend>
+            <select id="build-new-builder-provider"></select>
+            <select id="build-new-builder-model"></select>
+            <select id="build-new-builder-reasoning"></select>
+          </fieldset>
+        </div>
+        <p class="auth-feedback" id="build-dialog-feedback"
+          aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="dialog-secondary" type="button"
+            data-build-dialog-close>Annulla</button>
+          <button class="dialog-primary" type="submit"
+            id="create-build-project">Crea progetto</button>
+        </div>
+      </form>
+    </dialog>
+    {% endif %}
+  </body>
+</html>
