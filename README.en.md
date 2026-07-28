@@ -1,5 +1,7 @@
 # OmniProxy AI
 
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+
 > **Already paying monthly for an AI account? OmniProxy brings that access to
 > your applications and workflows through one local OpenAI-compatible API,
 > while you monitor requests, tokens, latency and quotas.**
@@ -149,6 +151,16 @@ curl http://127.0.0.1:8000/v1/chat/completions \
 For an n8n container attached to `omni-proxy-ai-network`, use
 `http://gateway:8000/v1` instead of the host URL.
 
+## Demo video
+
+[![OmniProxy AI demo with n8n](docs/assets/demo-cover.webp)](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4)
+
+[Watch or download the complete demo (1:49, no audio)](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4).
+It shows a managed API being created, an n8n OpenAI node being configured, a
+real request, and usage metrics updating. The
+[video guide](docs/DEMO_VIDEO.md) also provides a safe storyboard for future
+recordings.
+
 ## Security model
 
 - The dashboard binds to loopback by default.
@@ -192,3 +204,14 @@ python3 -m venv .venv
 
 See the [Italian documentation](README.md) for provider authentication,
 managed APIs, n8n networking and detailed security notes.
+
+## License
+
+OmniProxy AI is licensed under the
+[GNU Affero General Public License v3.0 only](LICENSE)
+(`AGPL-3.0-only`). You may use, modify, and distribute it, including
+commercially, subject to the license terms. If you make a modified version
+available over a network, you must offer its users the corresponding source
+code.
+
+Copyright © 2026 Nicola Alì.

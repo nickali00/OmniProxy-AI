@@ -3,6 +3,14 @@
 Questa guida serve a registrare una demo breve, comprensibile e sicura da
 collegare al README del repository.
 
+## Demo pubblicata
+
+[Guarda o scarica la demo di OmniProxy AI con n8n (1:49, senza audio)](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4).
+
+La copia pubblicata come allegato alla release è stata controllata e censura
+la chiave API locale mostrata durante la configurazione. Il filmato originale
+non è incluso nel repository.
+
 ## Prima della registrazione
 
 1. Usare un ambiente demo senza dati sensibili.
@@ -111,7 +119,7 @@ autenticazione amministrativa e TLS.
 - durata ideale: meno di 6 minuti;
 - evitare testo minuscolo: aumentare lo zoom del browser prima di registrare.
 
-## Pubblicazione del video
+## Pubblicazione di un nuovo video
 
 Non inserire il file MP4 nella cronologia Git: rende il repository molto
 pesante. Pubblicarlo invece come:
@@ -120,8 +128,7 @@ pesante. Pubblicarlo invece come:
 - allegato a una GitHub Release;
 - file su un servizio di hosting video.
 
-Poi sostituire nel README la frase “Il video sarà aggiunto dopo la
-registrazione” con:
+Poi aggiornare nel README il collegamento alla demo:
 
 ```markdown
 [Guarda la demo completa](https://URL-DEL-VIDEO)
