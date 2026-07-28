@@ -56,6 +56,24 @@ Per i client esistenti si usano il Base URL di OmniProxy e una chiave locale
 l'endpoint fisso di un singolo produttore, senza Base URL personalizzabile,
 richiede invece un adattatore.
 
+### Locale per impostazione predefinita
+
+OmniProxy è progettato per restare privato. Con la configurazione predefinita
+la porta è vincolata a `127.0.0.1`, quindi:
+
+- OpenClaw o un'app installata sullo stesso host usa
+  `http://127.0.0.1:8000/v1`;
+- n8n o un'altra app nella rete Docker `omni-proxy-ai-network` usa
+  `http://gateway:8000/v1`;
+- un'applicazione su un altro computer non può raggiungere direttamente
+  l'indirizzo locale.
+
+Per client esterni alla macchina usare preferibilmente una **VPN privata**.
+In alternativa configurare un reverse proxy HTTPS con autenticazione
+amministrativa, limiti di richiesta e una allowlist che esponga soltanto
+`/v1/*`. La dashboard e le route amministrative devono rimanere private.
+**Non esporre direttamente la porta `8000` su Internet.**
+
 ## A cosa serve
 
 - portare gli account AI supportati dentro OpenClaw, n8n, backend,
@@ -148,12 +166,14 @@ Se la porta `8000` è occupata, modificare `GATEWAY_PORT` nel file `.env`.
 
 ## Video dimostrativo
 
-[![Riproduci online la demo di OmniProxy AI](docs/assets/demo-cover.webp)](https://nickali00.github.io/OmniProxy-AI/)
+![Demo completa di OmniProxy AI riprodotta nel README](docs/assets/omniproxy-ai-demo-inline.gif)
 
-[Riproduci la demo direttamente online (1:49, senza audio)](https://nickali00.github.io/OmniProxy-AI/).
-Il filmato mostra la creazione di un'API gestita, la configurazione del nodo
-OpenAI in n8n, una chiamata reale e l'aggiornamento dei consumi: n8n è
-soltanto il client scelto per l'esempio. È disponibile anche il
+La demo completa viene riprodotta direttamente nel README. Mostra la creazione
+di un'API gestita, la configurazione del nodo OpenAI in n8n, una chiamata reale
+e l'aggiornamento dei consumi: n8n è soltanto il client scelto per l'esempio.
+Per mettere in pausa, usare la
+[versione online con controlli](https://nickali00.github.io/OmniProxy-AI/);
+è disponibile anche il
 [file MP4](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4).
 La
 [guida video](docs/DEMO_VIDEO.md) contiene anche lo storyboard per registrare

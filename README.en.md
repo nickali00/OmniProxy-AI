@@ -55,6 +55,23 @@ Custom applications can call `/v1/chat/completions` and `/v1/models`
 directly. An application that is locked to a vendor endpoint and does not
 support a custom Base URL requires an adapter.
 
+### Local by default
+
+OmniProxy is designed to remain private. The default configuration binds its
+port to `127.0.0.1`, therefore:
+
+- OpenClaw or an application on the same host uses
+  `http://127.0.0.1:8000/v1`;
+- n8n or another application on the `omni-proxy-ai-network` Docker network
+  uses `http://gateway:8000/v1`;
+- an application on another computer cannot reach the loopback address
+  directly.
+
+For clients outside the host, prefer a **private VPN**. Alternatively, use an
+HTTPS reverse proxy with administrative authentication, request limits, and
+an allowlist that exposes `/v1/*` only. Keep the dashboard and administrative
+routes private. **Never expose port `8000` directly to the Internet.**
+
 ## What it is for
 
 - Bring supported AI accounts into OpenClaw, n8n, backends, automations, and
@@ -170,12 +187,14 @@ For an n8n container attached to `omni-proxy-ai-network`, use
 
 ## Demo video
 
-[![Play the OmniProxy AI demo online](docs/assets/demo-cover.webp)](https://nickali00.github.io/OmniProxy-AI/)
+![Complete OmniProxy AI demo playing inside the README](docs/assets/omniproxy-ai-demo-inline.gif)
 
-[Play the complete demo online (1:49, no audio)](https://nickali00.github.io/OmniProxy-AI/).
-It shows a managed API being created, an n8n OpenAI node being configured, a
-real request, and usage metrics updating. n8n is simply the client used in
-this example. The
+The complete demo plays directly inside this README. It shows a managed API
+being created, an n8n OpenAI node being configured, a real request, and usage
+metrics updating. n8n is simply the client used in this example. To pause or
+seek, use the
+[online player with controls](https://nickali00.github.io/OmniProxy-AI/).
+The
 [MP4 file](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4)
 is also available. The
 [video guide](docs/DEMO_VIDEO.md) also provides a safe storyboard for future

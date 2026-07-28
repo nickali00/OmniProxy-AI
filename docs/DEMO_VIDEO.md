@@ -13,6 +13,12 @@ non è incluso nel repository. n8n è il client usato nella dimostrazione, ma
 OmniProxy è destinato a OpenClaw e a qualunque applicazione, workflow o
 integrazione custom che accetti una API OpenAI-compatible configurabile.
 
+OmniProxy rimane locale per impostazione predefinita. I client sullo stesso
+host usano `127.0.0.1`, quelli nella stessa rete Docker usano il nome del
+servizio `gateway`; per client esterni sono necessari una VPN privata oppure
+un reverse proxy HTTPS protetto che esponga soltanto `/v1/*`. La dashboard non
+deve essere esposta direttamente su Internet.
+
 ## Prima della registrazione
 
 1. Usare un ambiente demo senza dati sensibili.

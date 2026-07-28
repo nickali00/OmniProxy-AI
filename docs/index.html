@@ -313,6 +313,13 @@
         proprietario o interno è possibile integrare direttamente
         <code>/v1/chat/completions</code> e <code>/v1/models</code>.
       </p>
+      <p class="note">
+        Rete: OmniProxy ascolta su <code>127.0.0.1</code> per impostazione
+        predefinita. I client remoti devono raggiungerlo tramite VPN privata
+        oppure tramite un reverse proxy HTTPS che esponga soltanto
+        <code>/v1/*</code>. La dashboard e la porta <code>8000</code> non devono
+        essere pubblicate direttamente su Internet.
+      </p>
     </main>
   </body>
 </html>
