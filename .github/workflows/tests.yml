@@ -42,5 +42,13 @@ jobs:
           node --check app/static/dashboard.js
           node --check app/static/dashboard-i18n.js
 
+      - name: Validate Docker Compose configurations
+        run: |
+          docker compose config --quiet
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.gpu.yml \
+            config --quiet
+
       - name: Run tests
         run: pytest -q

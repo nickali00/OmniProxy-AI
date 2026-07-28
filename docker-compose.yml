@@ -236,7 +236,6 @@ services:
     profiles: ["managed-ollama"]
     image: ollama/ollama:latest
     restart: unless-stopped
-    gpus: all
     ports:
       - "127.0.0.1:11434:11434"
     volumes:

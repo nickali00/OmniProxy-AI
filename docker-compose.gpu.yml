@@ -1,0 +1,6 @@
+# Optional NVIDIA acceleration for the managed Ollama service.
+# Use together with docker-compose.yml only on a host where Docker can expose
+# an NVIDIA GPU to Linux containers.
+services:
+  ollama:
+    gpus: all

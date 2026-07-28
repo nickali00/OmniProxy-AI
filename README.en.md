@@ -77,7 +77,7 @@ routes private. **Never expose port `8000` directly to the Internet.**
 
 - Bring supported AI accounts into OpenClaw, n8n, backends, automations, and
   custom applications through one OpenAI-compatible endpoint.
-- Automatic Ollama discovery and optional managed GPU container.
+- Automatic Ollama discovery and optional managed CPU/GPU container.
 - Isolated sidecars for Codex, Gemini/Antigravity and Claude clients.
 - Stable managed API profiles locked to a provider, model and reasoning level.
 - Local API-key authentication with hashed secrets.
@@ -114,9 +114,9 @@ The core runs in Linux containers and **does not require Ubuntu**:
 
 | Host | Gateway and cloud providers | Recommended Ollama setup |
 | --- | --- | --- |
-| Linux `amd64` / `arm64` | Docker Engine + Compose | host, external container, or managed profile |
-| Windows 10/11 `amd64` | Docker Desktop with WSL2 and Linux containers | host Ollama or managed profile with NVIDIA/WSL2 |
-| Intel / Apple Silicon macOS | Docker Desktop | native host Ollama through `host.docker.internal` |
+| Linux `amd64` / `arm64` | Docker Engine + Compose | absent, host, external container, or managed CPU/GPU profile |
+| Windows 10/11 `amd64` | Docker Desktop with WSL2 and Linux containers | absent, host Ollama, or managed CPU/GPU profile |
+| Intel / Apple Silicon macOS | Docker Desktop | absent or native host Ollama through `host.docker.internal` |
 
 Requirements:
 
@@ -124,10 +124,12 @@ Requirements:
   [Docker Desktop on Windows](https://docs.docker.com/desktop/setup/install/windows-install/),
   or [Docker Desktop on macOS](https://docs.docker.com/desktop/setup/install/mac-install/).
 - Git.
-- NVIDIA drivers and the
-  [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-  only for managed Ollama GPU access on Linux. On Windows, container GPU
-  access requires Docker Desktop with WSL2 and a supported NVIDIA GPU.
+
+Ollama and GPU access are **not prerequisites**. You may connect only Codex,
+Gemini, and/or Claude. NVIDIA drivers and the
+[NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+are needed only for the Ollama GPU override on Linux. Windows acceleration
+requires Docker Desktop/WSL2 and a supported NVIDIA GPU.
 
 The v0.1 CI currently validates Linux automatically. Windows/WSL2 and macOS
 are supported by the container design but have not yet been added to the
@@ -152,17 +154,30 @@ BOOTSTRAP_API_KEY=sk-local-change-me-with-a-long-random-secret
 
 Never commit or share `.env`.
 
-Start the gateway while using an existing Ollama instance:
+Start the gateway with cloud providers only, or while using an existing
+Ollama instance:
 
 ```bash
 docker compose up -d --build
 ```
 
-On NVIDIA Linux or Windows/WSL2 with verified container GPU access, let the
-Compose profile run Ollama:
+When Ollama is absent it is reported as offline without blocking Codex,
+Gemini, or Claude.
+
+To run managed Ollama on CPU:
 
 ```bash
 docker compose --profile managed-ollama up -d --build
+```
+
+To explicitly enable NVIDIA GPU access:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.gpu.yml \
+  --profile managed-ollama \
+  up -d --build
 ```
 
 Verify:
