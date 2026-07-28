@@ -18,7 +18,7 @@ default · **Dashboard:** English / Italian / Spanish / French
 ## The core use case
 
 Do you pay monthly for a ChatGPT/Codex, Google AI/Gemini or Claude account and
-want to use it from your applications, automations or n8n workflows?
+want to use it from OpenClaw, your applications, automations or workflows?
 OmniProxy acts as the local bridge between that account and your tools:
 
 ```text
@@ -38,10 +38,27 @@ It does not turn a consumer subscription into an official API key. Supported
 official clients are executed as local adapters, and all usage remains subject
 to each provider's plan, quota and terms.
 
+## Beyond n8n
+
+n8n is only one possible example. OmniProxy can be configured as a custom
+provider for:
+
+- [OpenClaw](https://openclaw.ai/);
+- workflow and automation platforms such as n8n;
+- backends, agents, chatbots, and desktop or web applications;
+- scripts, SDKs, and purpose-built software;
+- any client that lets you configure an **OpenAI-compatible Base URL**, an API
+  key, and a model.
+
+Existing clients use the OmniProxy Base URL and a local `sk-local-...` key.
+Custom applications can call `/v1/chat/completions` and `/v1/models`
+directly. An application that is locked to a vendor endpoint and does not
+support a custom Base URL requires an adapter.
+
 ## What it is for
 
-- Bring supported AI accounts into n8n, backends and automations through one
-  OpenAI-compatible endpoint.
+- Bring supported AI accounts into OpenClaw, n8n, backends, automations, and
+  custom applications through one OpenAI-compatible endpoint.
 - Automatic Ollama discovery and optional managed GPU container.
 - Isolated sidecars for Codex, Gemini/Antigravity and Claude clients.
 - Stable managed API profiles locked to a provider, model and reasoning level.
@@ -153,11 +170,14 @@ For an n8n container attached to `omni-proxy-ai-network`, use
 
 ## Demo video
 
-[![OmniProxy AI demo with n8n](docs/assets/demo-cover.webp)](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4)
+[![Play the OmniProxy AI demo online](docs/assets/demo-cover.webp)](https://nickali00.github.io/OmniProxy-AI/)
 
-[Watch or download the complete demo (1:49, no audio)](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4).
+[Play the complete demo online (1:49, no audio)](https://nickali00.github.io/OmniProxy-AI/).
 It shows a managed API being created, an n8n OpenAI node being configured, a
-real request, and usage metrics updating. The
+real request, and usage metrics updating. n8n is simply the client used in
+this example. The
+[MP4 file](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4)
+is also available. The
 [video guide](docs/DEMO_VIDEO.md) also provides a safe storyboard for future
 recordings.
 

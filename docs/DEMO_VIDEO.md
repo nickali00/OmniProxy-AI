@@ -5,11 +5,13 @@ collegare al README del repository.
 
 ## Demo pubblicata
 
-[Guarda o scarica la demo di OmniProxy AI con n8n (1:49, senza audio)](https://github.com/nickali00/OmniProxy-AI/releases/download/v0.1.0/omniproxy-ai-demo-v0.1.0.mp4).
+[Riproduci direttamente online la demo di OmniProxy AI (1:49, senza audio)](https://nickali00.github.io/OmniProxy-AI/).
 
 La copia pubblicata come allegato alla release è stata controllata e censura
 la chiave API locale mostrata durante la configurazione. Il filmato originale
-non è incluso nel repository.
+non è incluso nel repository. n8n è il client usato nella dimostrazione, ma
+OmniProxy è destinato a OpenClaw e a qualunque applicazione, workflow o
+integrazione custom che accetti una API OpenAI-compatible configurabile.
 
 ## Prima della registrazione
 

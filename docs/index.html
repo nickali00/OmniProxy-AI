@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Demo online di OmniProxy AI: un gateway OpenAI-compatible per OpenClaw, n8n, applicazioni e integrazioni personalizzate."
+    >
+    <meta name="color-scheme" content="dark">
+    <title>OmniProxy AI — Demo online</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #06110f;
+        --surface: rgba(12, 31, 27, 0.88);
+        --surface-strong: #0d241f;
+        --border: rgba(137, 245, 202, 0.18);
+        --text: #f3fbf7;
+        --muted: #a4bbb1;
+        --accent: #73e8bd;
+        --accent-strong: #3ccf9a;
+        --shadow: 0 28px 80px rgba(0, 0, 0, 0.38);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        background:
+          radial-gradient(circle at 14% 0%, rgba(40, 191, 139, 0.18), transparent 35rem),
+          radial-gradient(circle at 90% 18%, rgba(68, 142, 221, 0.12), transparent 32rem),
+          var(--bg);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .page {
+        width: min(1180px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 34px 0 64px;
+      }
+
+      .nav,
+      .actions,
+      .tags {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .nav {
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: clamp(48px, 8vw, 88px);
+      }
+
+      .brand {
+        display: inline-flex;
+        gap: 12px;
+        align-items: center;
+        font-weight: 750;
+        letter-spacing: -0.02em;
+        text-decoration: none;
+      }
+
+      .mark {
+        display: grid;
+        width: 38px;
+        height: 38px;
+        place-items: center;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        color: #062319;
+        background: linear-gradient(145deg, var(--accent), #b2f9dd);
+        box-shadow: 0 10px 30px rgba(52, 211, 153, 0.22);
+      }
+
+      .nav-link {
+        color: var(--muted);
+        font-size: 0.94rem;
+        text-decoration: none;
+      }
+
+      .hero {
+        max-width: 880px;
+        margin-bottom: 38px;
+      }
+
+      .eyebrow {
+        margin: 0 0 16px;
+        color: var(--accent);
+        font-size: 0.78rem;
+        font-weight: 750;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 850px;
+        font-size: clamp(2.4rem, 7vw, 5.25rem);
+        line-height: 0.98;
+        letter-spacing: -0.06em;
+      }
+
+      .lead {
+        max-width: 780px;
+        margin: 26px 0 0;
+        color: var(--muted);
+        font-size: clamp(1.08rem, 2vw, 1.28rem);
+        line-height: 1.65;
+      }
+
+      .lead strong {
+        color: var(--text);
+      }
+
+      .player-shell {
+        overflow: hidden;
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: linear-gradient(145deg, rgba(19, 48, 41, 0.94), rgba(7, 21, 18, 0.94));
+        box-shadow: var(--shadow);
+      }
+
+      video {
+        display: block;
+        width: 100%;
+        aspect-ratio: 958 / 495;
+        border-radius: 16px;
+        background: #000;
+      }
+
+      .meta {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: 28px;
+        padding: 28px 18px 18px;
+      }
+
+      .meta h2 {
+        margin: 0 0 10px;
+        font-size: 1.25rem;
+        letter-spacing: -0.025em;
+      }
+
+      .meta p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .tags {
+        align-content: flex-start;
+        gap: 8px;
+      }
+
+      .tag {
+        padding: 8px 11px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: #c9ded5;
+        background: rgba(115, 232, 189, 0.06);
+        font-size: 0.82rem;
+      }
+
+      .actions {
+        gap: 12px;
+        margin-top: 28px;
+      }
+
+      .button {
+        display: inline-flex;
+        min-height: 46px;
+        align-items: center;
+        justify-content: center;
+        padding: 0 18px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        font-weight: 700;
+        text-decoration: none;
+        background: var(--surface);
+      }
+
+      .button-primary {
+        border-color: transparent;
+        color: #042218;
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      }
+
+      .note {
+        margin: 28px 0 0;
+        padding: 18px 20px;
+        border-left: 3px solid var(--accent);
+        border-radius: 0 12px 12px 0;
+        color: var(--muted);
+        background: rgba(115, 232, 189, 0.055);
+        line-height: 1.6;
+      }
+
+      @media (max-width: 720px) {
+        .page {
+          width: min(100% - 20px, 1180px);
+          padding-top: 20px;
+        }
+
+        .nav {
+          margin-bottom: 48px;
+        }
+
+        .meta {
+          grid-template-columns: 1fr;
+          padding: 22px 12px 12px;
+        }
+
+        .player-shell {
+          padding: 6px;
+          border-radius: 16px;
+        }
+
+        video {
+          border-radius: 11px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <nav class="nav" aria-label="Navigazione principale">
+        <a class="brand" href="https://github.com/nickali00/OmniProxy-AI">
+          <span class="mark" aria-hidden="true">◇</span>
+          <span>OmniProxy AI</span>
+        </a>
+        <a class="nav-link" href="https://github.com/nickali00/OmniProxy-AI">
+          Repository GitHub ↗
+        </a>
+      </nav>
+
+      <header class="hero">
+        <p class="eyebrow">Demo online · Phase 1</p>
+        <h1>Un solo gateway per le app che usano API AI.</h1>
+        <p class="lead">
+          Collega gli account e i modelli supportati a
+          <strong>OpenClaw, n8n, backend, automazioni e applicazioni custom</strong>
+          tramite un endpoint locale OpenAI-compatible, monitorando richieste,
+          token, latenza e quote.
+        </p>
+      </header>
+
+      <section class="player-shell" aria-labelledby="demo-title">
+        <video
+          controls
+          preload="metadata"
+          playsinline
+          poster="assets/demo-cover.webp"
+          aria-label="Video dimostrativo di OmniProxy AI"
+        >
+          <source src="assets/omniproxy-ai-demo-v0.1.0.mp4" type="video/mp4">
+          Il browser non supporta la riproduzione MP4.
+          <a href="assets/omniproxy-ai-demo-v0.1.0.mp4">Apri il video</a>.
+        </video>
+
+        <div class="meta">
+          <div>
+            <h2 id="demo-title">n8n è l'esempio, non il limite</h2>
+            <p>
+              La demo mostra una API gestita usata da n8n, ma lo stesso Base URL,
+              la stessa chiave locale e lo stesso modello possono essere configurati
+              in qualunque client che accetti un endpoint OpenAI-compatible
+              personalizzato.
+            </p>
+          </div>
+          <div class="tags" aria-label="Integrazioni compatibili">
+            <span class="tag">OpenClaw</span>
+            <span class="tag">n8n</span>
+            <span class="tag">Backend</span>
+            <span class="tag">Workflow</span>
+            <span class="tag">App custom</span>
+            <span class="tag">OpenAI-compatible</span>
+          </div>
+        </div>
+      </section>
+
+      <div class="actions">
+        <a
+          class="button button-primary"
+          href="https://github.com/nickali00/OmniProxy-AI#installazione-rapida"
+        >
+          Installa OmniProxy
+        </a>
+        <a
+          class="button"
+          href="https://github.com/nickali00/OmniProxy-AI/releases/tag/v0.1.0"
+        >
+          Release v0.1.0
+        </a>
+      </div>
+
+      <p class="note">
+        Compatibilità: l'applicazione deve permettere di configurare un Base URL
+        personalizzato e il protocollo OpenAI Chat Completions. Per software
+        proprietario o interno è possibile integrare direttamente
+        <code>/v1/chat/completions</code> e <code>/v1/models</code>.
+      </p>
+    </main>
+  </body>
+</html>
