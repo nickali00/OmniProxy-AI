@@ -7,7 +7,8 @@
 > while you monitor requests, tokens, latency and quotas.**
 
 **Status:** Phase 1 public preview · **Experimental Builder:** disabled by
-default · **Dashboard:** English / Italian / Spanish / French
+default · **Hosts:** Linux / Windows (WSL2) / macOS · **Dashboard:** English /
+Italian / Spanish / French
 
 [Italian documentation](README.md) ·
 [Demo video guide](docs/DEMO_VIDEO.md) ·
@@ -97,7 +98,7 @@ n8n / application / OpenAI-compatible client
           |           |           |
        Ollama      Codex CLI   Gemini / Claude clients
           |
-   local NVIDIA GPU
+   host or container, GPU optional
 
         SQLite: key hashes + usage metadata
 ```
@@ -105,16 +106,32 @@ n8n / application / OpenAI-compatible client
 Provider sessions live in separate Docker volumes. They are not copied into
 the browser, the SQLite database or application logs.
 
-## Quick start on Ubuntu
+## Cross-platform quick start
 
 ### Requirements
 
-- Ubuntu 22.04 or newer.
-- [Docker Engine and the Compose plugin](https://docs.docker.com/engine/install/ubuntu/).
+The core runs in Linux containers and **does not require Ubuntu**:
+
+| Host | Gateway and cloud providers | Recommended Ollama setup |
+| --- | --- | --- |
+| Linux `amd64` / `arm64` | Docker Engine + Compose | host, external container, or managed profile |
+| Windows 10/11 `amd64` | Docker Desktop with WSL2 and Linux containers | host Ollama or managed profile with NVIDIA/WSL2 |
+| Intel / Apple Silicon macOS | Docker Desktop | native host Ollama through `host.docker.internal` |
+
+Requirements:
+
+- [Docker Engine and Compose on Linux](https://docs.docker.com/engine/install/),
+  [Docker Desktop on Windows](https://docs.docker.com/desktop/setup/install/windows-install/),
+  or [Docker Desktop on macOS](https://docs.docker.com/desktop/setup/install/mac-install/).
 - Git.
 - NVIDIA drivers and the
   [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-  only when running managed Ollama with GPU.
+  only for managed Ollama GPU access on Linux. On Windows, container GPU
+  access requires Docker Desktop with WSL2 and a supported NVIDIA GPU.
+
+The v0.1 CI currently validates Linux automatically. Windows/WSL2 and macOS
+are supported by the container design but have not yet been added to the
+public CI matrix.
 
 ### Install
 
@@ -123,6 +140,8 @@ git clone https://github.com/nickali00/OmniProxy-AI.git
 cd OmniProxy-AI
 cp .env.example .env
 ```
+
+In PowerShell, replace `cp` with `Copy-Item .env.example .env`.
 
 Edit `.env` and replace the bootstrap key with a random value starting with
 `sk-local-` and containing at least 32 characters:
@@ -139,7 +158,8 @@ Start the gateway while using an existing Ollama instance:
 docker compose up -d --build
 ```
 
-Or let the Compose profile run Ollama with NVIDIA GPU access:
+On NVIDIA Linux or Windows/WSL2 with verified container GPU access, let the
+Compose profile run Ollama:
 
 ```bash
 docker compose --profile managed-ollama up -d --build

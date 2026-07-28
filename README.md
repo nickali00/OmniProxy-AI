@@ -7,7 +7,8 @@
 > OpenAI-compatible, mentre tu controlli richieste, token, latenza e quote.**
 
 **Stato:** Phase 1 public preview · **Builder sperimentale:** disabilitato di
-default · **Dashboard:** EN / IT / ES / FR
+default · **Host:** Linux / Windows (WSL2) / macOS · **Dashboard:** EN / IT /
+ES / FR
 
 [English documentation](README.en.md) ·
 [Guida video](docs/DEMO_VIDEO.md) ·
@@ -97,12 +98,29 @@ piano, alle quote e ai termini del provider collegato.
 
 ### 1. Prerequisiti
 
-- Ubuntu 22.04 o successivo;
-- [Docker Engine con Compose plugin](https://docs.docker.com/engine/install/ubuntu/);
+Il core usa container Linux e **non richiede Ubuntu**. La configurazione è
+portabile sui principali host Docker:
+
+| Host | Gateway e provider cloud | Ollama consigliato |
+| --- | --- | --- |
+| Linux `amd64` / `arm64` | Docker Engine + Compose | host, container esterno oppure profilo gestito |
+| Windows 10/11 `amd64` | Docker Desktop con backend WSL2 e container Linux | Ollama sull'host oppure profilo gestito con NVIDIA/WSL2 |
+| macOS Intel / Apple Silicon | Docker Desktop | Ollama nativo sull'host, raggiunto tramite `host.docker.internal` |
+
+Prerequisiti:
+
+- [Docker Engine e Compose su Linux](https://docs.docker.com/engine/install/),
+  oppure [Docker Desktop su Windows](https://docs.docker.com/desktop/setup/install/windows-install/)
+  o [macOS](https://docs.docker.com/desktop/setup/install/mac-install/);
 - Git;
 - driver NVIDIA e
   [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-  soltanto per eseguire Ollama con GPU tramite questo Compose.
+  soltanto per eseguire il profilo Ollama GPU su Linux. Su Windows la GPU nei
+  container richiede Docker Desktop con backend WSL2 e una NVIDIA supportata.
+
+La CI della v0.1 convalida automaticamente Linux; Windows/WSL2 e macOS sono
+supportati dal disegno containerizzato ma devono ancora essere aggiunti alla
+matrice CI pubblica.
 
 Verificare l'ambiente:
 
@@ -119,6 +137,8 @@ git clone https://github.com/nickali00/OmniProxy-AI.git
 cd OmniProxy-AI
 cp .env.example .env
 ```
+
+Da PowerShell usare `Copy-Item .env.example .env` al posto di `cp`.
 
 Aprire `.env` e sostituire obbligatoriamente:
 
@@ -137,7 +157,8 @@ Se Ollama è già disponibile sull'host o in un altro container:
 docker compose up -d --build
 ```
 
-Per avviare anche Ollama con GPU e volume modelli gestito:
+Su Linux NVIDIA o Windows/WSL2 con accesso GPU verificato, per avviare anche
+Ollama con volume modelli gestito:
 
 ```bash
 docker compose --profile managed-ollama up -d --build
@@ -182,13 +203,13 @@ demo future in sicurezza.
 ## Architettura
 
 ```text
-Client (n8n / app / qualunque client OpenAI-compatible)
+Client (OpenClaw / n8n / app / qualunque client OpenAI-compatible)
         |
         | Authorization: Bearer sk-local-...
         v
 FastAPI  /v1/chat/completions
         |
-        +-- model=base|local ----------> autodiscovery Ollama GPU
+        +-- model=base|local ----------> autodiscovery Ollama (GPU opzionale)
         |
         +-- model=reasoning-avanzato --> ExternalReasoningMockProvider
         |
@@ -261,11 +282,13 @@ richiede login e viene raggiunto tramite la sua API locale quando il container
 └── requirements-dev.txt
 ```
 
-## Avvio su Ubuntu + RTX 5070 Ti
+## Profilo NVIDIA — esempio Ubuntu + RTX 5070 Ti
 
-Prerequisiti: Docker Engine e Docker Compose. Driver NVIDIA e NVIDIA Container
-Toolkit sono necessari soltanto se OmniProxy deve avviare il proprio Ollama con
-GPU.
+Questa sezione è specifica per l'accelerazione NVIDIA dell'host originale, non
+per il gateway. Il core funziona anche senza GPU e sugli altri sistemi
+operativi indicati sopra. Driver NVIDIA e NVIDIA Container Toolkit sono
+necessari soltanto se OmniProxy deve avviare il proprio Ollama con GPU su
+Linux.
 
 ```bash
 cp .env.example .env
@@ -284,7 +307,7 @@ OmniProxy prova, nell'ordine, l'URL configurato, il DNS Docker `ollama` e
 `host.docker.internal:11434`. Il gateway continua ad avviarsi anche se Ollama
 non è presente.
 
-Per fare gestire a questo Compose anche Ollama e il download del modello:
+Per fare gestire a questo Compose anche Ollama GPU e il download del modello:
 
 ```bash
 docker compose --profile managed-ollama up -d --build
