@@ -1,7 +1,8 @@
 # OmniProxy AI
 
-> Gateway AI self-hosted e OpenAI-compatible per usare modelli locali e
-> provider cloud attraverso un solo endpoint controllato.
+> **Paghi già un account AI ogni mese? OmniProxy porta quell'accesso nelle tue
+> applicazioni e nei tuoi workflow tramite un'unica API locale
+> OpenAI-compatible, mentre tu controlli richieste, token, latenza e quote.**
 
 **Stato:** Phase 1 public preview · **Builder sperimentale:** disabilitato di
 default · **Dashboard:** EN / IT / ES / FR
@@ -12,17 +13,33 @@ default · **Dashboard:** EN / IT / ES / FR
 [Contribuire](CONTRIBUTING.md) ·
 [Segnalazioni](https://github.com/nickali00/OmniProxy-AI/issues)
 
-OmniProxy AI è un gateway FastAPI privato che espone
-`/v1/chat/completions`, autentica le applicazioni con chiavi locali e decide
-quale provider e modello usare. Le applicazioni come n8n, script e backend
-parlano sempre con la stessa API: il routing reale rimane centralizzato nel
-gateway.
+## Il caso d'uso fondamentale
+
+Hai un account ChatGPT/Codex, Google AI/Gemini o Claude che paghi mensilmente e
+vuoi usarlo anche nelle tue applicazioni, automazioni o flussi n8n? OmniProxy è
+il ponte locale tra quell'account e i tuoi strumenti:
+
+```text
+Il tuo account AI → OmniProxy → un'API per app, backend e workflow
+                                      ↓
+                         consumi e routing sotto controllo
+```
+
+OmniProxy espone `/v1/chat/completions`, autentica ogni applicazione con una
+chiave locale e usa il provider, il modello e il reasoning che hai scelto. I
+client continuano a parlare con lo stesso endpoint anche quando modifichi il
+modello dietro le quinte.
+
+Questo è il suo biglietto da visita: **riutilizzare in modo centralizzato gli
+account AI supportati nelle proprie applicazioni e monitorarne il consumo da
+un solo posto.**
 
 Dashboard locale predefinita: `http://127.0.0.1:8000/`.
 
 ## A cosa serve
 
-- offrire a n8n e alle applicazioni un unico endpoint OpenAI-compatible;
+- portare gli account AI supportati dentro n8n, backend e automazioni
+  attraverso un unico endpoint OpenAI-compatible;
 - collegare Ollama, Codex/ChatGPT, Gemini e Claude da un'interfaccia unica;
 - creare API locali vincolate a uno specifico provider, modello e livello di
   reasoning;

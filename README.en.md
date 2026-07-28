@@ -1,7 +1,8 @@
 # OmniProxy AI
 
-> A self-hosted, OpenAI-compatible AI gateway for local models and supported
-> cloud-provider clients.
+> **Already paying monthly for an AI account? OmniProxy brings that access to
+> your applications and workflows through one local OpenAI-compatible API,
+> while you monitor requests, tokens, latency and quotas.**
 
 **Status:** Phase 1 public preview · **Experimental Builder:** disabled by
 default · **Dashboard:** English / Italian / Spanish / French
@@ -12,10 +13,24 @@ default · **Dashboard:** English / Italian / Spanish / French
 [Contributing](CONTRIBUTING.md) ·
 [Issues](https://github.com/nickali00/OmniProxy-AI/issues)
 
-OmniProxy AI gives applications such as n8n, backend services and scripts one
-stable `/v1/chat/completions` endpoint. It authenticates clients with local
-API keys, resolves the configured provider/model/reasoning profile and records
-usage metadata in SQLite.
+## The core use case
+
+Do you pay monthly for a ChatGPT/Codex, Google AI/Gemini or Claude account and
+want to use it from your applications, automations or n8n workflows?
+OmniProxy acts as the local bridge between that account and your tools:
+
+```text
+Your AI account → OmniProxy → one API for apps, backends and workflows
+                                      ↓
+                         usage and routing under control
+```
+
+OmniProxy exposes `/v1/chat/completions`, authenticates every application with
+a local key, and uses the provider, model and reasoning profile you selected.
+Clients keep the same endpoint even when you change the model behind it.
+
+That is its calling card: **centralize supported AI accounts for your own
+applications and monitor their usage in one place.**
 
 It does not turn a consumer subscription into an official API key. Supported
 official clients are executed as local adapters, and all usage remains subject
@@ -23,7 +38,8 @@ to each provider's plan, quota and terms.
 
 ## What it is for
 
-- One OpenAI-compatible endpoint for multiple model providers.
+- Bring supported AI accounts into n8n, backends and automations through one
+  OpenAI-compatible endpoint.
 - Automatic Ollama discovery and optional managed GPU container.
 - Isolated sidecars for Codex, Gemini/Antigravity and Claude clients.
 - Stable managed API profiles locked to a provider, model and reasoning level.
