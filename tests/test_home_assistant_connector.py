@@ -7,6 +7,7 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -66,13 +67,34 @@ def _load_state_context_module():
     return sys.modules[f"{package_name}.state_context"]
 
 
+def _load_history_context_module():
+    """Load history helpers without installing Home Assistant."""
+    package_name = "omniproxy_home_assistant_history_test"
+    package = ModuleType(package_name)
+    package.__path__ = [str(COMPONENT)]
+    sys.modules[package_name] = package
+
+    for module_name in ("const", "state_context", "history_context"):
+        qualified_name = f"{package_name}.{module_name}"
+        spec = importlib.util.spec_from_file_location(
+            qualified_name,
+            COMPONENT / f"{module_name}.py",
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[qualified_name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[f"{package_name}.history_context"]
+
+
 def test_manifest_is_a_hacs_installable_config_flow():
     manifest = json.loads((COMPONENT / "manifest.json").read_text())
 
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.4.5"
+    assert manifest["version"] == "0.4.6"
+    assert "recorder" in manifest["after_dependencies"]
 
 
 @pytest.mark.parametrize(
@@ -281,6 +303,115 @@ def test_conversation_bridges_climate_commands_through_home_assistant_intents():
     assert "local_climate_control_candidates" in source
     assert "await intent.async_handle(" in source
     assert '"domain": {"value": "climate"}' in source
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        ("Confronta ieri con 7 giorni fa", (1, 7)),
+        ("Produzione di oggi e ieri", (0, 1)),
+        ("Produzione di avantieri", (2,)),
+        ("Produzione di una settimana fa", (7,)),
+        ("Qual è la produzione attuale?", ()),
+    ],
+)
+def test_relative_history_days_are_parsed_locally(query, expected):
+    history_context = _load_history_context_module()
+
+    assert history_context.relative_day_offsets(query) == expected
+
+
+@pytest.mark.asyncio
+async def test_historical_context_queries_only_relevant_exposed_solar_sensors():
+    history_context = _load_history_context_module()
+    timezone = ZoneInfo("Europe/Rome")
+    now = datetime(2026, 8, 18, 15, 0, tzinfo=timezone)
+    states = [
+        SimpleNamespace(
+            entity_id="sensor.energia_prodotta_fotovoltaico",
+            name="Energia prodotta fotovoltaico",
+            state="31.2",
+            attributes={"unit_of_measurement": "kWh"},
+        ),
+        SimpleNamespace(
+            entity_id="sensor.energia_batteria_fotovoltaico",
+            name="Energia batteria fotovoltaico",
+            state="70",
+            attributes={"unit_of_measurement": "%"},
+        ),
+        SimpleNamespace(
+            entity_id="sensor.private_solar_production",
+            name="Produzione solare privata",
+            state="10",
+            attributes={"unit_of_measurement": "kWh"},
+        ),
+    ]
+    hass = SimpleNamespace(
+        states=SimpleNamespace(async_all=lambda _domains=None: states)
+    )
+    requested_ids = None
+
+    async def load_statistics(start, end, entity_ids):
+        nonlocal requested_ids
+        requested_ids = entity_ids
+        assert start == datetime(2026, 8, 11, tzinfo=timezone)
+        assert end == datetime(2026, 8, 17, tzinfo=timezone)
+        return {
+            "sensor.energia_prodotta_fotovoltaico": [
+                {
+                    "start": datetime(2026, 8, 11, tzinfo=timezone).timestamp(),
+                    "change": 12.5,
+                },
+                {
+                    "start": datetime(2026, 8, 17, tzinfo=timezone).timestamp(),
+                    "change": 18.75,
+                },
+            ]
+        }
+
+    rendered = await history_context.async_build_historical_state_context(
+        hass,
+        "Puoi comparare la produzione solare di ieri con quella di 7 giorni fa?",
+        should_expose=lambda entity_id: entity_id != "sensor.private_solar_production",
+        metadata_resolver=lambda _state: ((), None),
+        now=now,
+        statistics_loader=load_statistics,
+    )
+
+    assert rendered is not None
+    payload = json.loads(rendered.rsplit("\n", maxsplit=1)[-1])
+    assert requested_ids == {"sensor.energia_prodotta_fotovoltaico"}
+    assert payload["status"] == "ok"
+    assert payload["requested_days"] == [
+        {"days_ago": 1, "date": "2026-08-17"},
+        {"days_ago": 7, "date": "2026-08-11"},
+    ]
+    assert payload["entities"][0]["days"] == [
+        {"date": "2026-08-11", "change": 12.5},
+        {"date": "2026-08-17", "change": 18.75},
+    ]
+    assert "DO have historical data" in rendered
+
+
+@pytest.mark.asyncio
+async def test_current_state_questions_do_not_query_recorder():
+    history_context = _load_history_context_module()
+    called = False
+
+    async def load_statistics(_start, _end, _entity_ids):
+        nonlocal called
+        called = True
+        return {}
+
+    rendered = await history_context.async_build_historical_state_context(
+        SimpleNamespace(),
+        "Quanta energia solare sto producendo adesso?",
+        now=datetime(2026, 8, 18, tzinfo=UTC),
+        statistics_loader=load_statistics,
+    )
+
+    assert rendered is None
+    assert called is False
 
 
 def test_connector_migrates_only_known_legacy_default_prompts():

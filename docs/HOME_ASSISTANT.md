@@ -152,6 +152,28 @@ Examples:
 - `Quali batterie sono sotto il 20%?`
 - `Che temperatura c'è in cucina?`
 - `La finestra della camera è aperta?`
+- `Confronta la produzione solare di ieri con quella di 7 giorni fa.`
+
+### Historical comparisons
+
+Questions containing relative dates such as `ieri`, `avantieri`, `7 giorni
+fa` or `una settimana fa` trigger a bounded query to Home Assistant Recorder.
+The connector first selects only relevant sensors exposed to Assist, then reads
+their daily long-term statistics on Recorder's executor. It does not forward a
+raw state-history stream to the provider.
+
+For cumulative energy and `total_increasing` sensors, the daily `change` value
+represents energy produced or consumed during that local calendar day. For
+measurement sensors the context contains daily mean, minimum and maximum when
+available. Up to 20 strongly matching sensors are included, which permits
+separate photovoltaic totals for multiple buildings while keeping the prompt
+bounded. Aggregate and component sensors are labelled individually and must
+not be added together unless they are known to be non-overlapping.
+
+Historical values are available only when Recorder has retained long-term
+statistics for the selected entity. The entity must also be exposed to Assist.
+If no suitable statistics exist, the agent reports that explicitly instead of
+using the current value as if it were historical data.
 
 Use clear entity names and aliases for the best local match. If no exposed
 entity matches the question, the agent will report that the information is not
@@ -174,6 +196,9 @@ available instead of inventing a state.
 8. Per comandare un dispositivo, esponilo ad Assist e assegnagli un nome o
    alias chiaro. L'esecuzione avviene localmente in Home Assistant, non nel
    provider AI.
+9. Per confronti tra giorni, assicurati che il sensore abbia statistiche a
+   lungo termine in Recorder; poi puoi chiedere, ad esempio, `Confronta la
+   produzione solare di ieri con quella di 7 giorni fa`.
 
 Se Home Assistant è un container sulla rete Docker di OmniProxy, usa invece
 `http://gateway:8000/v1`.

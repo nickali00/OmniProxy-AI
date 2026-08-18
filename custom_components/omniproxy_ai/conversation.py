@@ -33,6 +33,7 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DOMAIN,
 )
+from .history_context import async_build_historical_state_context
 from .local_intents import (
     local_climate_control_candidates,
     local_intent_candidates,
@@ -193,6 +194,12 @@ class OmniProxyConversationEntity(
                 DEFAULT_INCLUDE_EXPOSED_ENTITIES,
             )
         ):
+            historical_context = await async_build_historical_state_context(
+                self.hass,
+                user_input.text,
+            )
+            if historical_context:
+                system_prompt = f"{system_prompt}\n\n{historical_context}"
             state_context = build_exposed_state_context(
                 self.hass,
                 user_input.text,
