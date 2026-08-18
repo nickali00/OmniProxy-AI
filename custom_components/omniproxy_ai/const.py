@@ -1,0 +1,22 @@
+"""Constants for the OmniProxy AI Home Assistant integration."""
+
+DOMAIN = "omniproxy_ai"
+PLATFORMS = ["conversation"]
+
+CONF_MODEL = "model"
+CONF_SYSTEM_PROMPT = "system_prompt"
+CONF_MAX_TOKENS = "max_tokens"
+CONF_TEMPERATURE = "temperature"
+CONF_MAX_HISTORY = "max_history"
+
+DEFAULT_BASE_URL = "http://127.0.0.1:8000/v1"
+DEFAULT_SYSTEM_PROMPT = (
+    "You are a concise Home Assistant voice assistant. Reply in the same "
+    "language as the user. This connector can answer questions and generate "
+    "text, but it cannot directly execute Home Assistant services yet."
+)
+DEFAULT_MAX_TOKENS = 512
+DEFAULT_TEMPERATURE = 0.3
+DEFAULT_MAX_HISTORY = 6
+DEFAULT_REQUEST_TIMEOUT = 120
+DEFAULT_VALIDATION_TIMEOUT = 10

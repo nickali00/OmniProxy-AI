@@ -8,7 +8,7 @@ services:
     init: true
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${GATEWAY_PORT:-8000}:8000"
+      - "${GATEWAY_BIND_ADDRESS:-127.0.0.1}:${GATEWAY_PORT:-8000}:8000"
     environment:
       DATABASE_PATH: ${DATABASE_PATH:-/data/omni_proxy.sqlite3}
       BOOTSTRAP_API_KEY: ${BOOTSTRAP_API_KEY:-}

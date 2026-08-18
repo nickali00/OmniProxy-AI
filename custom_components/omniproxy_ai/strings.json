@@ -1,0 +1,49 @@
+{
+  "title": "OmniProxy AI",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect OmniProxy AI",
+        "description": "Create a dedicated API in OmniProxy AI, then enter its local endpoint and key. The model and provider are detected automatically.",
+        "data": {
+          "url": "Base URL",
+          "api_key": "Local API key"
+        },
+        "data_description": {
+          "url": "OpenAI-compatible URL ending in /v1. The default local port is 8000.",
+          "api_key": "The sk-local-... key shown once when the managed API is created."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Reconnect OmniProxy AI",
+        "description": "Enter a new active local API key.",
+        "data": {
+          "api_key": "Local API key"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to reach OmniProxy AI. Check address, Docker networking and port.",
+      "invalid_auth": "The local API key is invalid, revoked or paused.",
+      "invalid_response": "The endpoint did not return a compatible OmniProxy AI response.",
+      "invalid_url": "Enter a valid HTTP or HTTPS URL."
+    },
+    "abort": {
+      "already_configured": "This OmniProxy AI API is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "OmniProxy AI options",
+        "description": "Customize the Assist response without changing the provider/model profile stored in OmniProxy AI.",
+        "data": {
+          "system_prompt": "Instructions",
+          "max_tokens": "Maximum response tokens",
+          "temperature": "Temperature",
+          "max_history": "Conversation turns to keep"
+        }
+      }
+    }
+  }
+}

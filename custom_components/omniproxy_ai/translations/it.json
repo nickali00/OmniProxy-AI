@@ -1,0 +1,42 @@
+{
+  "title": "OmniProxy AI",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Collega OmniProxy AI",
+        "description": "Crea un'API dedicata in OmniProxy AI, poi inserisci endpoint locale e chiave. Modello e provider vengono rilevati automaticamente.",
+        "data": {"url": "URL di base", "api_key": "Chiave API locale"},
+        "data_description": {
+          "url": "URL compatibile OpenAI che termina con /v1. La porta locale predefinita è 8000.",
+          "api_key": "La chiave sk-local-... mostrata una sola volta quando crei l'API gestita."
+        }
+      },
+      "reauth_confirm": {
+        "title": "Ricollega OmniProxy AI",
+        "description": "Inserisci una nuova chiave API locale attiva.",
+        "data": {"api_key": "Chiave API locale"}
+      }
+    },
+    "error": {
+      "cannot_connect": "OmniProxy AI non è raggiungibile. Controlla indirizzo, rete Docker e porta.",
+      "invalid_auth": "La chiave locale non è valida, è stata revocata o sospesa.",
+      "invalid_response": "L'endpoint non ha restituito una risposta OmniProxy AI compatibile.",
+      "invalid_url": "Inserisci un URL HTTP o HTTPS valido."
+    },
+    "abort": {"already_configured": "Questa API OmniProxy AI è già configurata."}
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni OmniProxy AI",
+        "description": "Personalizza le risposte di Assist senza cambiare il profilo provider/modello salvato in OmniProxy AI.",
+        "data": {
+          "system_prompt": "Istruzioni",
+          "max_tokens": "Token massimi della risposta",
+          "temperature": "Temperatura",
+          "max_history": "Turni di conversazione da mantenere"
+        }
+      }
+    }
+  }
+}
