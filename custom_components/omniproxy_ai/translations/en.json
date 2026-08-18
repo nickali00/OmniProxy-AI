@@ -31,10 +31,14 @@
         "title": "OmniProxy AI options",
         "description": "Customize the Assist response without changing the provider/model profile stored in OmniProxy AI.",
         "data": {
+          "include_exposed_entities": "Read relevant entities exposed to Assist",
           "system_prompt": "Instructions",
           "max_tokens": "Maximum response tokens",
           "temperature": "Temperature",
           "max_history": "Conversation turns to keep"
+        },
+        "data_description": {
+          "include_exposed_entities": "Selects matching states locally and adds only those read-only values to each request."
         }
       }
     }

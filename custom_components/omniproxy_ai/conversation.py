@@ -17,15 +17,18 @@ from .api import (
     OmniProxyConnectionError,
 )
 from .const import (
+    CONF_INCLUDE_EXPOSED_ENTITIES,
     CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
     CONF_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
+    DEFAULT_INCLUDE_EXPOSED_ENTITIES,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
 )
+from .state_context import build_exposed_state_context
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,6 +84,16 @@ class OmniProxyConversationEntity(
         if user_input.extra_system_prompt:
             system_prompt = (
                 f"{system_prompt}\n\n{user_input.extra_system_prompt.strip()}"
+            )
+        if bool(
+            options.get(
+                CONF_INCLUDE_EXPOSED_ENTITIES,
+                DEFAULT_INCLUDE_EXPOSED_ENTITIES,
+            )
+        ):
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                f"{build_exposed_state_context(self.hass, user_input.text)}"
             )
 
         max_history = int(options.get(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY))

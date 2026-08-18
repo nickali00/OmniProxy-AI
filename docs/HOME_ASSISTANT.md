@@ -5,10 +5,10 @@ conversation agent to Assist. Home Assistant connects to one managed
 OmniProxy API, while the provider, model and reasoning profile remain enforced
 by the gateway.
 
-The connector currently supports text/voice conversation and use from
-`conversation.process` automations. Direct Home Assistant entity control is
-not enabled yet because OmniProxy Chat Completions does not currently expose
-tool calls.
+The connector supports text/voice conversation, read-only questions about
+current Home Assistant states and use from `conversation.process`
+automations. Direct entity control is not enabled yet because OmniProxy Chat
+Completions does not currently expose tool calls.
 
 ## 1. Create the dedicated API
 
@@ -103,6 +103,29 @@ conversation history length without changing the managed gateway API.
 The same agent can be called by an automation through Home Assistant's
 `conversation.process` action.
 
+## 5. Let the agent read home states
+
+Open **Settings > Voice assistants > Expose** and expose only the entities the
+agent is allowed to read. Battery sensors are not generally exposed by
+default, so select each desired battery entity explicitly.
+
+For every question, the connector searches the exposed catalog locally using
+the entity name, entity ID, device class and multilingual terms. It sends only
+the matching states to OmniProxy, up to a fixed safety limit; it never sends
+the full Home Assistant state catalog. Arbitrary entity attributes are also
+discarded. This behavior can be disabled from the OmniProxy AI integration
+options with **Read relevant entities exposed to Assist**.
+
+Examples:
+
+- `Quali batterie sono sotto il 20%?`
+- `Che temperatura c'è in cucina?`
+- `La finestra della camera è aperta?`
+
+Use clear entity names and aliases for the best local match. If no exposed
+entity matches the question, the agent will report that the information is not
+available instead of inventing a state.
+
 ---
 
 ## Guida rapida in italiano
@@ -115,6 +138,8 @@ The same agent can be called by an automation through Home Assistant's
    rete host. Se hai cambiato `GATEWAY_PORT`, sostituisci `8000` con quel valore.
 5. Incolla la chiave: modello e provider vengono rilevati automaticamente.
 6. Seleziona l'agente nella pipeline Assist.
+7. Apri **Impostazioni > Assistenti vocali > Esponi** e abilita per Assist i
+   soli sensori che vuoi rendere leggibili, comprese le batterie desiderate.
 
 Se Home Assistant è un container sulla rete Docker di OmniProxy, usa invece
 `http://gateway:8000/v1`.

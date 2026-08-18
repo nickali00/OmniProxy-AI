@@ -31,10 +31,14 @@
         "title": "Opciones de OmniProxy AI",
         "description": "Personaliza la respuesta de Assist sin cambiar el perfil de proveedor/modelo guardado en OmniProxy AI.",
         "data": {
+          "include_exposed_entities": "Leer entidades relevantes expuestas a Assist",
           "system_prompt": "Instrucciones",
           "max_tokens": "Tokens máximos de respuesta",
           "temperature": "Temperatura",
           "max_history": "Turnos de conversación que se conservarán"
+        },
+        "data_description": {
+          "include_exposed_entities": "Selecciona localmente los estados relevantes y envía solo esos valores de solo lectura."
         }
       }
     }

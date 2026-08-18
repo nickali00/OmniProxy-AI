@@ -11,6 +11,7 @@ from homeassistant.const import CONF_API_KEY, CONF_URL
 from homeassistant.core import callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -28,12 +29,14 @@ from .api import (
     normalize_base_url,
 )
 from .const import (
+    CONF_INCLUDE_EXPOSED_ENTITIES,
     CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
     CONF_MODEL,
     CONF_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
     DEFAULT_BASE_URL,
+    DEFAULT_INCLUDE_EXPOSED_ENTITIES,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_REQUEST_TIMEOUT,
@@ -64,6 +67,13 @@ def _connection_schema(
 def _options_schema(options: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
+            vol.Required(
+                CONF_INCLUDE_EXPOSED_ENTITIES,
+                default=options.get(
+                    CONF_INCLUDE_EXPOSED_ENTITIES,
+                    DEFAULT_INCLUDE_EXPOSED_ENTITIES,
+                ),
+            ): BooleanSelector(),
             vol.Required(
                 CONF_SYSTEM_PROMPT,
                 default=options.get(CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT),
@@ -162,6 +172,9 @@ class OmniProxyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_MODEL: model,
                     },
                     options={
+                        CONF_INCLUDE_EXPOSED_ENTITIES: (
+                            DEFAULT_INCLUDE_EXPOSED_ENTITIES
+                        ),
                         CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
                         CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
                         CONF_TEMPERATURE: DEFAULT_TEMPERATURE,

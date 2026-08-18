@@ -3,8 +3,9 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
@@ -32,13 +33,33 @@ def _load_api_module():
     return module
 
 
+def _load_state_context_module():
+    """Load state relevance helpers without installing Home Assistant."""
+    package_name = "omniproxy_home_assistant_test"
+    package = ModuleType(package_name)
+    package.__path__ = [str(COMPONENT)]
+    sys.modules[package_name] = package
+
+    for module_name in ("const", "state_context"):
+        qualified_name = f"{package_name}.{module_name}"
+        spec = importlib.util.spec_from_file_location(
+            qualified_name,
+            COMPONENT / f"{module_name}.py",
+        )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[qualified_name] = module
+        spec.loader.exec_module(module)
+    return sys.modules[f"{package_name}.state_context"]
+
+
 def test_manifest_is_a_hacs_installable_config_flow():
     manifest = json.loads((COMPONENT / "manifest.json").read_text())
 
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.2.0"
+    assert manifest["version"] == "0.3.0"
 
 
 @pytest.mark.parametrize(
@@ -99,3 +120,53 @@ def test_all_connector_translations_are_valid_json():
         )
         assert translation["title"] == "OmniProxy AI"
         assert translation["config"]["error"]["cannot_connect"]
+
+
+def test_state_context_sends_only_relevant_exposed_entities():
+    state_context = _load_state_context_module()
+    now = datetime(2026, 8, 18, 12, 0, tzinfo=UTC)
+    states = [
+        SimpleNamespace(
+            entity_id="sensor.phone_battery",
+            name="Phone battery",
+            state="42",
+            attributes={
+                "device_class": "battery",
+                "unit_of_measurement": "%",
+                "private_token": "must-not-leave-home-assistant",
+            },
+            last_changed=now,
+        ),
+        SimpleNamespace(
+            entity_id="sensor.kitchen_temperature",
+            name="Kitchen temperature",
+            state="21.5",
+            attributes={
+                "device_class": "temperature",
+                "unit_of_measurement": "°C",
+            },
+            last_changed=now,
+        ),
+        SimpleNamespace(
+            entity_id="sensor.secret_battery",
+            name="Unexposed battery",
+            state="10",
+            attributes={"device_class": "battery"},
+            last_changed=now,
+        ),
+    ]
+    hass = SimpleNamespace(states=SimpleNamespace(async_all=lambda: states))
+
+    rendered = state_context.build_exposed_state_context(
+        hass,
+        "Quali sono le batterie di casa?",
+        should_expose=lambda entity_id: entity_id != "sensor.secret_battery",
+    )
+    payload = json.loads(rendered.rsplit("\n", maxsplit=1)[-1])
+
+    assert payload["total_exposed"] == 2
+    assert [item["entity_id"] for item in payload["entities"]] == [
+        "sensor.phone_battery"
+    ]
+    assert payload["entities"][0]["state"] == "42"
+    assert "private_token" not in payload["entities"][0]
