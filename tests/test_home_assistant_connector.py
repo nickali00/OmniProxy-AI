@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import struct
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -59,7 +60,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.3.0"
+    assert manifest["version"] == "0.3.1"
 
 
 @pytest.mark.parametrize(
@@ -120,6 +121,19 @@ def test_all_connector_translations_are_valid_json():
         )
         assert translation["title"] == "OmniProxy AI"
         assert translation["config"]["error"]["cannot_connect"]
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected_size"),
+    [("icon.png", 256), ("icon@2x.png", 512)],
+)
+def test_local_brand_icons_are_square_rgba_png(filename, expected_size):
+    image = (COMPONENT / "brand" / filename).read_bytes()
+
+    assert image.startswith(b"\x89PNG\r\n\x1a\n")
+    width, height = struct.unpack(">II", image[16:24])
+    assert (width, height) == (expected_size, expected_size)
+    assert image[25] == 6  # PNG color type 6: RGBA
 
 
 def test_state_context_sends_only_relevant_exposed_entities():
