@@ -50,6 +50,7 @@ class OmniProxyConversationEntity(
 
     _attr_has_entity_name = True
     _attr_icon = "mdi:transit-connection-variant"
+    _attr_supported_features = conversation.ConversationEntityFeature.CONTROL
 
     def __init__(self, entry: OmniProxyConfigEntry) -> None:
         self.entry = entry
@@ -76,7 +77,25 @@ class OmniProxyConversationEntity(
         user_input: conversation.ConversationInput,
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
-        """Send recent Assist history to the configured OmniProxy API."""
+        """Handle safe local intents, then fall back to the configured LLM."""
+        local_response = await conversation.async_handle_intents(
+            self.hass,
+            user_input,
+            chat_log,
+        )
+        if local_response is not None:
+            speech = local_response.speech.get("plain", {}).get("speech", "")
+            chat_log.async_add_assistant_content_without_tools(
+                conversation.AssistantContent(
+                    agent_id=user_input.agent_id,
+                    content=speech,
+                )
+            )
+            return conversation.ConversationResult(
+                response=local_response,
+                conversation_id=chat_log.conversation_id,
+            )
+
         options = self.entry.options
         system_prompt = str(
             options.get(CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT)

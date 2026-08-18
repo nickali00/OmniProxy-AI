@@ -60,7 +60,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.3.2"
+    assert manifest["version"] == "0.4.0"
 
 
 @pytest.mark.parametrize(
@@ -121,6 +121,16 @@ def test_all_connector_translations_are_valid_json():
         )
         assert translation["title"] == "OmniProxy AI"
         assert translation["config"]["error"]["cannot_connect"]
+
+
+def test_conversation_agent_routes_controls_through_local_assist_first():
+    source = (COMPONENT / "conversation.py").read_text()
+
+    assert "ConversationEntityFeature.CONTROL" in source
+    assert "await conversation.async_handle_intents(" in source
+    assert source.index("await conversation.async_handle_intents(") < source.index(
+        "async_chat("
+    )
 
 
 @pytest.mark.parametrize(

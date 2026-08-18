@@ -5,10 +5,12 @@ conversation agent to Assist. Home Assistant connects to one managed
 OmniProxy API, while the provider, model and reasoning profile remain enforced
 by the gateway.
 
-The connector supports text/voice conversation, read-only questions about
-current Home Assistant states and use from `conversation.process`
-automations. Direct entity control is not enabled yet because OmniProxy Chat
-Completions does not currently expose tool calls.
+The connector supports text/voice conversation, questions about current Home
+Assistant states, safe local home-control intents and use from
+`conversation.process` automations. Device commands are executed by Home
+Assistant's native Assist intent engine before conversational requests are
+sent to OmniProxy. The model never receives permission to call arbitrary Home
+Assistant services.
 
 ## 1. Create the dedicated API
 
@@ -103,6 +105,20 @@ conversation history length without changing the managed gateway API.
 The same agent can be called by an automation through Home Assistant's
 `conversation.process` action.
 
+### Safe device control
+
+Commands recognized by Home Assistant's built-in Assist grammar are handled
+locally with the original user context. Only entities exposed to Assist can be
+targeted. For example:
+
+- `Accendi il condizionatore di Nicola.`
+- `Spegni le luci della cucina.`
+- `Imposta il condizionatore a 23 gradi.`
+
+Give each target a clear entity name or alias. If the local intent engine does
+not recognize a command, it falls back to OmniProxy as a normal conversation;
+the LLM is not allowed to invent or execute a service call.
+
 ## 5. Let the agent read home states
 
 Open **Settings > Voice assistants > Expose** and expose only the entities the
@@ -141,6 +157,9 @@ available instead of inventing a state.
 6. Seleziona l'agente nella pipeline Assist.
 7. Apri **Impostazioni > Assistenti vocali > Esponi** e abilita per Assist i
    soli sensori che vuoi rendere leggibili, comprese le batterie desiderate.
+8. Per comandare un dispositivo, esponilo ad Assist e assegnagli un nome o
+   alias chiaro. L'esecuzione avviene localmente in Home Assistant, non nel
+   provider AI.
 
 Se Home Assistant è un container sulla rete Docker di OmniProxy, usa invece
 `http://gateway:8000/v1`.
