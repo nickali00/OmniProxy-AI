@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import Literal
 
 from homeassistant.components import conversation
@@ -28,6 +29,7 @@ from .const import (
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
 )
+from .local_intents import local_intent_candidates, looks_like_control_command
 from .state_context import build_exposed_state_context
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,23 +80,29 @@ class OmniProxyConversationEntity(
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         """Handle safe local intents, then fall back to the configured LLM."""
-        local_response = await conversation.async_handle_intents(
-            self.hass,
-            user_input,
-            chat_log,
-        )
-        if local_response is not None:
-            speech = local_response.speech.get("plain", {}).get("speech", "")
-            chat_log.async_add_assistant_content_without_tools(
-                conversation.AssistantContent(
-                    agent_id=user_input.agent_id,
-                    content=speech,
+        for candidate in local_intent_candidates(user_input.text):
+            candidate_input = (
+                user_input
+                if candidate == user_input.text
+                else replace(user_input, text=candidate)
+            )
+            local_response = await conversation.async_handle_intents(
+                self.hass,
+                candidate_input,
+                chat_log,
+            )
+            if local_response is not None:
+                speech = local_response.speech.get("plain", {}).get("speech", "")
+                chat_log.async_add_assistant_content_without_tools(
+                    conversation.AssistantContent(
+                        agent_id=user_input.agent_id,
+                        content=speech,
+                    )
                 )
-            )
-            return conversation.ConversationResult(
-                response=local_response,
-                conversation_id=chat_log.conversation_id,
-            )
+                return conversation.ConversationResult(
+                    response=local_response,
+                    conversation_id=chat_log.conversation_id,
+                )
 
         options = self.entry.options
         system_prompt = str(
@@ -103,6 +111,15 @@ class OmniProxyConversationEntity(
         if user_input.extra_system_prompt:
             system_prompt = (
                 f"{system_prompt}\n\n{user_input.extra_system_prompt.strip()}"
+            )
+        if looks_like_control_command(user_input.text):
+            system_prompt = (
+                f"{system_prompt}\n\nThis message looks like a home-control "
+                "request, but Home Assistant's local intent engine did not "
+                "match it. Do not say that the connector lacks control. "
+                "Explain concisely that the target may not be exposed to "
+                "Assist or its exact name/alias did not match. Do not claim "
+                "that the action was executed."
             )
         if bool(
             options.get(

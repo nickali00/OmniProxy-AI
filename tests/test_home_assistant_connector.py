@@ -34,6 +34,18 @@ def _load_api_module():
     return module
 
 
+def _load_local_intents_module():
+    """Load local command normalization without requiring Home Assistant."""
+    spec = importlib.util.spec_from_file_location(
+        "omniproxy_home_assistant_local_intents",
+        COMPONENT / "local_intents.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _load_state_context_module():
     """Load state relevance helpers without installing Home Assistant."""
     package_name = "omniproxy_home_assistant_test"
@@ -60,7 +72,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.4.0"
+    assert manifest["version"] == "0.4.1"
 
 
 @pytest.mark.parametrize(
@@ -131,6 +143,32 @@ def test_conversation_agent_routes_controls_through_local_assist_first():
     assert source.index("await conversation.async_handle_intents(") < source.index(
         "async_chat("
     )
+
+
+@pytest.mark.parametrize(
+    ("phrase", "normalized"),
+    [
+        (
+            "Puoi accendere il condizionatore di Nicola?",
+            "accendi il condizionatore di Nicola?",
+        ),
+        ("Mi puoi spegnere la luce?", "spegni la luce?"),
+        ("Per favore, potresti impostare 23 gradi?", "imposta 23 gradi?"),
+    ],
+)
+def test_polite_italian_controls_get_a_local_assist_candidate(phrase, normalized):
+    local_intents = _load_local_intents_module()
+
+    assert local_intents.local_intent_candidates(phrase) == (phrase, normalized)
+    assert local_intents.looks_like_control_command(phrase)
+
+
+def test_connector_migrates_only_known_legacy_default_prompts():
+    init_source = (COMPONENT / "__init__.py").read_text()
+    config_flow_source = (COMPONENT / "config_flow.py").read_text()
+
+    assert "options.get(CONF_SYSTEM_PROMPT) in LEGACY_SYSTEM_PROMPTS" in init_source
+    assert "VERSION = 2" in config_flow_source
 
 
 @pytest.mark.parametrize(

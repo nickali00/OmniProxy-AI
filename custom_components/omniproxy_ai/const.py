@@ -20,6 +20,28 @@ DEFAULT_SYSTEM_PROMPT = (
     "are handled safely by Home Assistant's local Assist intent engine before "
     "a message reaches you; never claim that you executed an action yourself."
 )
+LEGACY_SYSTEM_PROMPTS = (
+    (
+        "You are a concise Home Assistant voice assistant. Reply in the same "
+        "language as the user. This connector can answer questions and generate "
+        "text, but it cannot directly execute Home Assistant services yet."
+    ),
+    (
+        "You are a concise Home Assistant voice assistant. Reply in the same "
+        "language as the user. You may receive a read-only snapshot of entities "
+        "that the user explicitly exposed to Assist. Use only that snapshot for "
+        "questions about the home. This connector cannot directly execute Home "
+        "Assistant services yet."
+    ),
+    (
+        "You are a concise Home Assistant voice assistant. Reply in the same "
+        "language as the user. You have read-only access to the relevant entity "
+        "states supplied in HOME_ASSISTANT_RELEVANT_STATE_CONTEXT. When that "
+        "context contains entities, never say that you cannot see Home Assistant. "
+        "Use only those states for questions about the home. Read access is not "
+        "control: this connector cannot execute Home Assistant services yet."
+    ),
+)
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.3
 DEFAULT_MAX_HISTORY = 6

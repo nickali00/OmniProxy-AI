@@ -16,7 +16,13 @@ from .api import (
     OmniProxyConnectionError,
     OmniProxyResponseError,
 )
-from .const import CONF_MODEL, DEFAULT_REQUEST_TIMEOUT
+from .const import (
+    CONF_MODEL,
+    CONF_SYSTEM_PROMPT,
+    DEFAULT_REQUEST_TIMEOUT,
+    DEFAULT_SYSTEM_PROMPT,
+    LEGACY_SYSTEM_PROMPTS,
+)
 
 
 @dataclass(slots=True)
@@ -28,6 +34,25 @@ class OmniProxyRuntimeData:
 
 
 OmniProxyConfigEntry = ConfigEntry[OmniProxyRuntimeData]
+
+
+async def async_migrate_entry(
+    hass: HomeAssistant,
+    entry: OmniProxyConfigEntry,
+) -> bool:
+    """Migrate connector defaults without replacing user-customized prompts."""
+    if entry.version > 2:
+        return False
+    if entry.version < 2:
+        options = dict(entry.options)
+        if options.get(CONF_SYSTEM_PROMPT) in LEGACY_SYSTEM_PROMPTS:
+            options[CONF_SYSTEM_PROMPT] = DEFAULT_SYSTEM_PROMPT
+        hass.config_entries.async_update_entry(
+            entry,
+            options=options,
+            version=2,
+        )
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: OmniProxyConfigEntry) -> bool:
