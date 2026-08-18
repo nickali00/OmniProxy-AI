@@ -30,6 +30,7 @@ from .api import (
 )
 from .const import (
     CONF_INCLUDE_EXPOSED_ENTITIES,
+    CONF_MAX_CONTEXT_ENTITIES,
     CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
     CONF_MODEL,
@@ -37,6 +38,7 @@ from .const import (
     CONF_TEMPERATURE,
     DEFAULT_BASE_URL,
     DEFAULT_INCLUDE_EXPOSED_ENTITIES,
+    DEFAULT_MAX_CONTEXT_ENTITIES,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_REQUEST_TIMEOUT,
@@ -44,6 +46,7 @@ from .const import (
     DEFAULT_TEMPERATURE,
     DEFAULT_VALIDATION_TIMEOUT,
     DOMAIN,
+    MAX_CONTEXT_ENTITIES_LIMIT,
 )
 
 
@@ -78,6 +81,20 @@ def _options_schema(options: dict[str, Any]) -> vol.Schema:
                 CONF_SYSTEM_PROMPT,
                 default=options.get(CONF_SYSTEM_PROMPT, DEFAULT_SYSTEM_PROMPT),
             ): TemplateSelector(),
+            vol.Required(
+                CONF_MAX_CONTEXT_ENTITIES,
+                default=options.get(
+                    CONF_MAX_CONTEXT_ENTITIES,
+                    DEFAULT_MAX_CONTEXT_ENTITIES,
+                ),
+            ): NumberSelector(
+                NumberSelectorConfig(
+                    min=5,
+                    max=MAX_CONTEXT_ENTITIES_LIMIT,
+                    step=5,
+                    mode=NumberSelectorMode.BOX,
+                )
+            ),
             vol.Required(
                 CONF_MAX_TOKENS,
                 default=options.get(CONF_MAX_TOKENS, DEFAULT_MAX_TOKENS),
@@ -175,6 +192,7 @@ class OmniProxyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         CONF_INCLUDE_EXPOSED_ENTITIES: (
                             DEFAULT_INCLUDE_EXPOSED_ENTITIES
                         ),
+                        CONF_MAX_CONTEXT_ENTITIES: DEFAULT_MAX_CONTEXT_ENTITIES,
                         CONF_SYSTEM_PROMPT: DEFAULT_SYSTEM_PROMPT,
                         CONF_MAX_TOKENS: DEFAULT_MAX_TOKENS,
                         CONF_TEMPERATURE: DEFAULT_TEMPERATURE,

@@ -119,6 +119,13 @@ Give each target a clear entity name or alias. If the local intent engine does
 not recognize a command, it falls back to OmniProxy as a normal conversation;
 the LLM is not allowed to invent or execute a service call.
 
+For Italian climate commands, the connector safely bridges explicit phrases
+such as `accendi il condizionatore di Nicola` to Home Assistant's native intent
+handler because the standard Italian `HassTurnOn` sentence set does not include
+the `climate` domain. Add `condizionatore di Nicola` as an alias on the actual
+`climate.*` entity, not on its separate temperature sensor. Pronouns such as
+`accendilo` are intentionally not resolved to a device.
+
 ## 5. Let the agent read home states
 
 Open **Settings > Voice assistants > Expose** and expose only the entities the
@@ -126,11 +133,13 @@ agent is allowed to read. Battery sensors are not generally exposed by
 default, so select each desired battery entity explicitly.
 
 For every question, the connector searches the exposed catalog locally using
-the entity name, entity ID, device class and multilingual terms. It sends only
-the matching states to OmniProxy, up to a fixed safety limit; it never sends
-the full Home Assistant state catalog. Arbitrary entity attributes are also
-discarded. This behavior can be disabled from the OmniProxy AI integration
-options with **Read relevant entities exposed to Assist**.
+the entity name, entity ID, aliases, area, device class and multilingual terms.
+It sends only the matching states to OmniProxy. The default limit is 40
+entities per request and can be raised to 100 from the integration options for
+broad catalog questions; specific questions normally select far fewer states.
+Arbitrary entity attributes are discarded. This behavior can be disabled from
+the OmniProxy AI integration options with **Read relevant entities exposed to
+Assist**.
 
 Examples:
 

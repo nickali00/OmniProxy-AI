@@ -32,13 +32,15 @@
         "description": "Personalizza le risposte di Assist senza cambiare il profilo provider/modello salvato in OmniProxy AI.",
         "data": {
           "include_exposed_entities": "Leggi le entità pertinenti esposte ad Assist",
+          "max_context_entities": "Entità pertinenti massime per richiesta",
           "system_prompt": "Istruzioni",
           "max_tokens": "Token massimi della risposta",
           "temperature": "Temperatura",
           "max_history": "Turni di conversazione da mantenere"
         },
         "data_description": {
-          "include_exposed_entities": "Seleziona localmente gli stati attinenti e invia soltanto quei valori in sola lettura."
+          "include_exposed_entities": "Seleziona localmente gli stati attinenti e invia soltanto quei valori in sola lettura.",
+          "max_context_entities": "Aumenta questo valore solo per le richieste generiche di inventario. Le domande specifiche usano normalmente molte meno entità."
         }
       }
     }

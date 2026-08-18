@@ -9,6 +9,7 @@ from typing import Literal
 from homeassistant.components import conversation
 from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import intent
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import OmniProxyConfigEntry
@@ -19,17 +20,24 @@ from .api import (
 )
 from .const import (
     CONF_INCLUDE_EXPOSED_ENTITIES,
+    CONF_MAX_CONTEXT_ENTITIES,
     CONF_MAX_HISTORY,
     CONF_MAX_TOKENS,
     CONF_SYSTEM_PROMPT,
     CONF_TEMPERATURE,
     DEFAULT_INCLUDE_EXPOSED_ENTITIES,
+    DEFAULT_MAX_CONTEXT_ENTITIES,
     DEFAULT_MAX_HISTORY,
     DEFAULT_MAX_TOKENS,
     DEFAULT_SYSTEM_PROMPT,
     DEFAULT_TEMPERATURE,
+    DOMAIN,
 )
-from .local_intents import local_intent_candidates, looks_like_control_command
+from .local_intents import (
+    local_climate_control_candidate,
+    local_intent_candidates,
+    looks_like_control_command,
+)
 from .state_context import build_exposed_state_context
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,7 +88,8 @@ class OmniProxyConversationEntity(
         chat_log: conversation.ChatLog,
     ) -> conversation.ConversationResult:
         """Handle safe local intents, then fall back to the configured LLM."""
-        for candidate in local_intent_candidates(user_input.text):
+        candidates = local_intent_candidates(user_input.text)
+        for candidate in candidates:
             candidate_input = (
                 user_input
                 if candidate == user_input.text
@@ -92,6 +101,48 @@ class OmniProxyConversationEntity(
                 chat_log,
             )
             if local_response is not None:
+                speech = local_response.speech.get("plain", {}).get("speech", "")
+                chat_log.async_add_assistant_content_without_tools(
+                    conversation.AssistantContent(
+                        agent_id=user_input.agent_id,
+                        content=speech,
+                    )
+                )
+                return conversation.ConversationResult(
+                    response=local_response,
+                    conversation_id=chat_log.conversation_id,
+                )
+
+        # The official Italian HassTurnOn/HassTurnOff sentence set currently
+        # excludes the climate domain. Bridge only explicit climate commands
+        # through Home Assistant's own intent handler. Target resolution still
+        # honors Assist exposure, aliases, duplicate-name checks and the
+        # original request context; no arbitrary service name comes from the
+        # model.
+        for candidate in candidates:
+            if climate_control := local_climate_control_candidate(candidate):
+                action, target = climate_control
+                intent_type = (
+                    intent.INTENT_TURN_ON
+                    if action == "turn_on"
+                    else intent.INTENT_TURN_OFF
+                )
+                try:
+                    local_response = await intent.async_handle(
+                        self.hass,
+                        DOMAIN,
+                        intent_type,
+                        slots={
+                            "name": {"value": target, "text": target},
+                            "domain": {"value": "climate"},
+                        },
+                        text_input=candidate,
+                        context=user_input.context,
+                        language=user_input.language,
+                        assistant=conversation.DOMAIN,
+                    )
+                except intent.IntentError:
+                    continue
                 speech = local_response.speech.get("plain", {}).get("speech", "")
                 chat_log.async_add_assistant_content_without_tools(
                     conversation.AssistantContent(
@@ -127,10 +178,17 @@ class OmniProxyConversationEntity(
                 DEFAULT_INCLUDE_EXPOSED_ENTITIES,
             )
         ):
-            system_prompt = (
-                f"{system_prompt}\n\n"
-                f"{build_exposed_state_context(self.hass, user_input.text)}"
+            state_context = build_exposed_state_context(
+                self.hass,
+                user_input.text,
+                max_entities=int(
+                    options.get(
+                        CONF_MAX_CONTEXT_ENTITIES,
+                        DEFAULT_MAX_CONTEXT_ENTITIES,
+                    )
+                ),
             )
+            system_prompt = f"{system_prompt}\n\n{state_context}"
 
         max_history = int(options.get(CONF_MAX_HISTORY, DEFAULT_MAX_HISTORY))
         messages: list[dict[str, str]] = [{"role": "system", "content": system_prompt}]

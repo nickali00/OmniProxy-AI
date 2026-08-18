@@ -6,10 +6,10 @@ import json
 import math
 import re
 import unicodedata
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
-from .const import MAX_RELEVANT_ENTITY_CONTEXT
+from .const import DEFAULT_MAX_CONTEXT_ENTITIES, MAX_CONTEXT_ENTITIES_LIMIT
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant, State
@@ -182,7 +182,12 @@ def _tokens(value: str) -> set[str]:
     return result
 
 
-def _relevance_score(state: State, query_tokens: set[str]) -> int:
+def _relevance_score(
+    state: State,
+    query_tokens: set[str],
+    aliases: Sequence[str] = (),
+    area_name: str | None = None,
+) -> int:
     """Score an exposed state locally without sending the catalog to the LLM."""
     if not query_tokens:
         return 0
@@ -193,6 +198,8 @@ def _relevance_score(state: State, query_tokens: set[str]) -> int:
             str(state.name),
             str(attributes.get("device_class", "")),
             str(attributes.get("unit_of_measurement", "")),
+            " ".join(aliases),
+            area_name or "",
         )
     )
     state_tokens = _tokens(searchable)
@@ -208,13 +215,23 @@ def _relevance_score(state: State, query_tokens: set[str]) -> int:
     )
 
 
-def _state_payload(state: State) -> dict[str, str | int | float | bool | None]:
+def _state_payload(
+    state: State,
+    aliases: Sequence[str] = (),
+    area_name: str | None = None,
+) -> dict[str, Any]:
     """Serialize one state without forwarding arbitrary entity attributes."""
-    payload: dict[str, str | int | float | bool | None] = {
+    payload: dict[str, Any] = {
         "entity_id": state.entity_id,
         "name": str(state.name)[:_MAX_TEXT_LENGTH],
         "state": str(state.state)[:_MAX_TEXT_LENGTH],
     }
+    if aliases:
+        payload["aliases"] = [
+            str(alias)[:_MAX_TEXT_LENGTH] for alias in aliases[:10]
+        ]
+    if area_name:
+        payload["area"] = area_name[:_MAX_TEXT_LENGTH]
     attributes: Mapping[str, Any] = state.attributes
     for key in _SAFE_ATTRIBUTES:
         if key not in attributes:
@@ -227,11 +244,48 @@ def _state_payload(state: State) -> dict[str, str | int | float | bool | None]:
     return payload
 
 
+def _entity_voice_metadata(
+    hass: HomeAssistant,
+    state: State,
+) -> tuple[tuple[str, ...], str | None]:
+    """Return registry aliases and area without exposing other metadata."""
+    try:
+        from homeassistant.helpers import area_registry as ar
+        from homeassistant.helpers import device_registry as dr
+        from homeassistant.helpers import entity_registry as er
+    except ImportError:
+        return (), None
+
+    entity_entry = er.async_get(hass).async_get(state.entity_id)
+    if entity_entry is None:
+        return (), None
+
+    aliases = tuple(
+        sorted(
+            str(alias)
+            for alias in (getattr(entity_entry, "aliases", None) or ())
+            if str(alias).strip()
+        )
+    )
+    area_id = getattr(entity_entry, "area_id", None)
+    if area_id is None and (device_id := getattr(entity_entry, "device_id", None)):
+        if device_entry := dr.async_get(hass).async_get(device_id):
+            area_id = device_entry.area_id
+    area_name: str | None = None
+    if area_id and (area_entry := ar.async_get(hass).async_get_area(area_id)):
+        area_name = str(area_entry.name)
+    return aliases, area_name
+
+
 def build_exposed_state_context(
     hass: HomeAssistant,
     query: str,
     *,
     should_expose: Callable[[str], bool] | None = None,
+    max_entities: int = DEFAULT_MAX_CONTEXT_ENTITIES,
+    metadata_resolver: (
+        Callable[[State], tuple[Sequence[str], str | None]] | None
+    ) = None,
 ) -> str:
     """Return current states that Home Assistant exposes to Assist."""
     if should_expose is None:
@@ -246,24 +300,44 @@ def build_exposed_state_context(
             entity_id,
         )
 
+    max_entities = max(1, min(int(max_entities), MAX_CONTEXT_ENTITIES_LIMIT))
     query_tokens = _tokens(query)
     catalog_requested = _CATALOG_TOKEN in query_tokens
     relevance_tokens = query_tokens - {_CATALOG_TOKEN}
     exposed_states = [
         state for state in hass.states.async_all() if should_expose(state.entity_id)
     ]
+    metadata = {
+        state.entity_id: (
+            metadata_resolver(state)
+            if metadata_resolver is not None
+            else _entity_voice_metadata(hass, state)
+        )
+        for state in exposed_states
+    }
     if catalog_requested and not relevance_tokens:
         ranked = [(1, state) for state in exposed_states]
     else:
-        ranked = [
-            (_relevance_score(state, relevance_tokens), state)
-            for state in exposed_states
-        ]
+        ranked = []
+        for state in exposed_states:
+            aliases, area_name = metadata[state.entity_id]
+            ranked.append(
+                (
+                    _relevance_score(
+                        state,
+                        relevance_tokens,
+                        aliases,
+                        area_name,
+                    ),
+                    state,
+                )
+            )
     ranked = [item for item in ranked if item[0] > 0]
     ranked.sort(key=lambda item: (-item[0], item[1].entity_id))
-    selected = [
-        _state_payload(state) for _, state in ranked[:MAX_RELEVANT_ENTITY_CONTEXT]
-    ]
+    selected = []
+    for _, state in ranked[:max_entities]:
+        aliases, area_name = metadata[state.entity_id]
+        selected.append(_state_payload(state, aliases, area_name))
     context = {
         "selection_mode": "catalog" if catalog_requested else "relevance",
         "query_terms": sorted(relevance_tokens),

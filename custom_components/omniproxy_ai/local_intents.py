@@ -24,6 +24,18 @@ _CONTROL_WORDS = re.compile(
     r"chiudi|chiudere|alza|alzare|abbassa|abbassare)\b",
     re.IGNORECASE,
 )
+_ITALIAN_DIRECT_CLIMATE_COMMAND = re.compile(
+    r"^\s*(?P<verb>accendi|attiva|avvia|spegni|disattiva|ferma)\s+"
+    r"(?:(?:il|lo|la|un|una)\s+|l['’])?"
+    r"(?P<target>.+?)\s*[?.!]*$",
+    re.IGNORECASE,
+)
+_ITALIAN_CLIMATE_TARGET = re.compile(
+    r"\b(?:clima|climatizzatore|condizionatore|termostato)\b|"
+    r"\baria\s+condizionata\b",
+    re.IGNORECASE,
+)
+_TURN_ON_WORDS = {"accendi", "attiva", "avvia"}
 
 
 def local_intent_candidates(text: str) -> tuple[str, ...]:
@@ -46,3 +58,19 @@ def local_intent_candidates(text: str) -> tuple[str, ...]:
 def looks_like_control_command(text: str) -> bool:
     """Return whether a request appears to ask for a device action."""
     return _CONTROL_WORDS.search(text) is not None
+
+
+def local_climate_control_candidate(text: str) -> tuple[str, str] | None:
+    """Return a safe on/off action and explicit Italian climate target."""
+    match = _ITALIAN_DIRECT_CLIMATE_COMMAND.match(text)
+    if match is None:
+        return None
+    target = match.group("target").strip()
+    if not _ITALIAN_CLIMATE_TARGET.search(target):
+        return None
+    action = (
+        "turn_on"
+        if match.group("verb").lower() in _TURN_ON_WORDS
+        else "turn_off"
+    )
+    return action, target

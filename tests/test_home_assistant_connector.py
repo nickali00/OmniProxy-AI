@@ -72,7 +72,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.4.1"
+    assert manifest["version"] == "0.4.2"
 
 
 @pytest.mark.parametrize(
@@ -161,6 +161,41 @@ def test_polite_italian_controls_get_a_local_assist_candidate(phrase, normalized
 
     assert local_intents.local_intent_candidates(phrase) == (phrase, normalized)
     assert local_intents.looks_like_control_command(phrase)
+
+
+@pytest.mark.parametrize(
+    ("phrase", "expected"),
+    [
+        (
+            "accendi il condizionatore di Nicola",
+            ("turn_on", "condizionatore di Nicola"),
+        ),
+        (
+            "spegni il climatizzatore della camera",
+            ("turn_off", "climatizzatore della camera"),
+        ),
+        (
+            "attiva l'aria condizionata di Nicola",
+            ("turn_on", "aria condizionata di Nicola"),
+        ),
+        ("accendi la luce di Nicola", None),
+        ("accendilo", None),
+    ],
+)
+def test_explicit_italian_climate_commands_get_a_safe_direct_intent(
+    phrase, expected
+):
+    local_intents = _load_local_intents_module()
+
+    assert local_intents.local_climate_control_candidate(phrase) == expected
+
+
+def test_conversation_bridges_climate_commands_through_home_assistant_intents():
+    source = (COMPONENT / "conversation.py").read_text()
+
+    assert "local_climate_control_candidate" in source
+    assert "await intent.async_handle(" in source
+    assert '"domain": {"value": "climate"}' in source
 
 
 def test_connector_migrates_only_known_legacy_default_prompts():
@@ -297,3 +332,35 @@ def test_state_context_can_list_all_visible_entities_on_explicit_request():
 
     assert payload["selection_mode"] == "catalog"
     assert payload["entities"][0]["entity_id"] == "light.kitchen"
+
+
+def test_state_context_limit_is_configurable_and_includes_aliases_and_area():
+    state_context = _load_state_context_module()
+    states = [
+        SimpleNamespace(
+            entity_id=f"climate.room_{index}",
+            name=f"Room {index}",
+            state="off",
+            attributes={"temperature": 24.5},
+            last_changed=None,
+        )
+        for index in range(3)
+    ]
+    hass = SimpleNamespace(states=SimpleNamespace(async_all=lambda: states))
+
+    rendered = state_context.build_exposed_state_context(
+        hass,
+        "condizionatore nicola",
+        should_expose=lambda _entity_id: True,
+        max_entities=2,
+        metadata_resolver=lambda state: (
+            ("condizionatore Nicola",) if state.entity_id == "climate.room_1" else (),
+            "Camera Nicola" if state.entity_id == "climate.room_1" else None,
+        ),
+    )
+    payload = json.loads(rendered.rsplit("\n", maxsplit=1)[-1])
+
+    assert payload["matched"] == 1
+    assert payload["included"] == 1
+    assert payload["entities"][0]["aliases"] == ["condizionatore Nicola"]
+    assert payload["entities"][0]["area"] == "Camera Nicola"
