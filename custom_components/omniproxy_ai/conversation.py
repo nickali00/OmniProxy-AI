@@ -34,7 +34,7 @@ from .const import (
     DOMAIN,
 )
 from .local_intents import (
-    local_climate_control_candidate,
+    local_climate_control_candidates,
     local_intent_candidates,
     looks_like_control_command,
 )
@@ -120,8 +120,7 @@ class OmniProxyConversationEntity(
         # original request context; no arbitrary service name comes from the
         # model.
         for candidate in candidates:
-            if climate_control := local_climate_control_candidate(candidate):
-                action, target = climate_control
+            for action, target in local_climate_control_candidates(candidate):
                 intent_type = (
                     intent.INTENT_TURN_ON
                     if action == "turn_on"
@@ -170,7 +169,9 @@ class OmniProxyConversationEntity(
                 "match it. Do not say that the connector lacks control. "
                 "Explain concisely that the target may not be exposed to "
                 "Assist or its exact name/alias did not match. Do not claim "
-                "that the action was executed."
+                "that the action was executed. A sensor.* temperature entity "
+                "is read-only and can never be suggested as an action target; "
+                "climate commands must target an exposed climate.* entity."
             )
         if bool(
             options.get(

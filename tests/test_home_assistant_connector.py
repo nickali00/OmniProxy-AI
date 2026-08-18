@@ -72,7 +72,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.4.2"
+    assert manifest["version"] == "0.4.3"
 
 
 @pytest.mark.parametrize(
@@ -187,13 +187,28 @@ def test_explicit_italian_climate_commands_get_a_safe_direct_intent(
 ):
     local_intents = _load_local_intents_module()
 
-    assert local_intents.local_climate_control_candidate(phrase) == expected
+    actual = local_intents.local_climate_control_candidates(phrase)
+    if expected is None:
+        assert actual == ()
+    else:
+        assert actual == (expected,)
+
+
+def test_climate_control_normalizes_safe_room_phrase_and_common_typo():
+    local_intents = _load_local_intents_module()
+
+    assert local_intents.local_climate_control_candidates(
+        "accendi condizionatore derlla stanza di nicola"
+    ) == (
+        ("turn_on", "condizionatore della stanza di nicola"),
+        ("turn_on", "condizionatore di nicola"),
+    )
 
 
 def test_conversation_bridges_climate_commands_through_home_assistant_intents():
     source = (COMPONENT / "conversation.py").read_text()
 
-    assert "local_climate_control_candidate" in source
+    assert "local_climate_control_candidates" in source
     assert "await intent.async_handle(" in source
     assert '"domain": {"value": "climate"}' in source
 
@@ -364,3 +379,36 @@ def test_state_context_limit_is_configurable_and_includes_aliases_and_area():
     assert payload["included"] == 1
     assert payload["entities"][0]["aliases"] == ["condizionatore Nicola"]
     assert payload["entities"][0]["area"] == "Camera Nicola"
+
+
+def test_specific_state_question_keeps_only_the_strongest_matches():
+    state_context = _load_state_context_module()
+    states = [
+        SimpleNamespace(
+            entity_id="sensor.nicola_temperature",
+            name="Temperatura stanza Nicola",
+            state="29",
+            attributes={"device_class": "temperature"},
+            last_changed=None,
+        ),
+        SimpleNamespace(
+            entity_id="sensor.kitchen_temperature",
+            name="Temperatura cucina",
+            state="25",
+            attributes={"device_class": "temperature"},
+            last_changed=None,
+        ),
+    ]
+    hass = SimpleNamespace(states=SimpleNamespace(async_all=lambda: states))
+
+    rendered = state_context.build_exposed_state_context(
+        hass,
+        "temperatura stanza Nicola",
+        should_expose=lambda _entity_id: True,
+        metadata_resolver=lambda _state: ((), None),
+    )
+    payload = json.loads(rendered.rsplit("\n", maxsplit=1)[-1])
+
+    assert [entity["entity_id"] for entity in payload["entities"]] == [
+        "sensor.nicola_temperature"
+    ]

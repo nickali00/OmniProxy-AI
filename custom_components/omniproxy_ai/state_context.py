@@ -131,6 +131,14 @@ _SYNONYMS = {
     "sensors": "sensor",
     "capteur": "sensor",
     "capteurs": "sensor",
+    "clima": "climate",
+    "climatizzatore": "climate",
+    "climatizzatori": "climate",
+    "condizionatore": "climate",
+    "condizionatori": "climate",
+    "termostato": "climate",
+    "termostati": "climate",
+    "temp": "temperature",
     "entita": _CATALOG_TOKEN,
     "entidad": _CATALOG_TOKEN,
     "entidades": _CATALOG_TOKEN,
@@ -334,6 +342,10 @@ def build_exposed_state_context(
             )
     ranked = [item for item in ranked if item[0] > 0]
     ranked.sort(key=lambda item: (-item[0], item[1].entity_id))
+    if not catalog_requested and len(relevance_tokens) >= 2 and ranked:
+        strongest_score = ranked[0][0]
+        if strongest_score >= 20:
+            ranked = [item for item in ranked if item[0] == strongest_score]
     selected = []
     for _, state in ranked[:max_entities]:
         aliases, area_name = metadata[state.entity_id]

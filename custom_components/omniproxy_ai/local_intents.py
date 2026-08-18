@@ -21,7 +21,8 @@ _ITALIAN_IMPERATIVES = {
 }
 _CONTROL_WORDS = re.compile(
     r"\b(?:accendi|accendere|spegni|spegnere|imposta|impostare|apri|aprire|"
-    r"chiudi|chiudere|alza|alzare|abbassa|abbassare)\b",
+    r"chiudi|chiudere|alza|alzare|abbassa|abbassare|attiva|avvia|disattiva|"
+    r"ferma)\b",
     re.IGNORECASE,
 )
 _ITALIAN_DIRECT_CLIMATE_COMMAND = re.compile(
@@ -36,6 +37,13 @@ _ITALIAN_CLIMATE_TARGET = re.compile(
     re.IGNORECASE,
 )
 _TURN_ON_WORDS = {"accendi", "attiva", "avvia"}
+_COMMON_ITALIAN_CONTROL_TYPOS = {
+    "derlla": "della",
+}
+_ITALIAN_CLIMATE_ROOM_PHRASE = re.compile(
+    r"\b(?:della|nella)\s+(?:stanza|camera)\s+di\s+",
+    re.IGNORECASE,
+)
 
 
 def local_intent_candidates(text: str) -> tuple[str, ...]:
@@ -60,17 +68,28 @@ def looks_like_control_command(text: str) -> bool:
     return _CONTROL_WORDS.search(text) is not None
 
 
-def local_climate_control_candidate(text: str) -> tuple[str, str] | None:
-    """Return a safe on/off action and explicit Italian climate target."""
+def local_climate_control_candidates(text: str) -> tuple[tuple[str, str], ...]:
+    """Return safe target variants for an explicit Italian climate command."""
     match = _ITALIAN_DIRECT_CLIMATE_COMMAND.match(text)
     if match is None:
-        return None
+        return ()
     target = match.group("target").strip()
     if not _ITALIAN_CLIMATE_TARGET.search(target):
-        return None
+        return ()
     action = (
         "turn_on"
         if match.group("verb").lower() in _TURN_ON_WORDS
         else "turn_off"
     )
-    return action, target
+    words = target.split()
+    normalized_target = " ".join(
+        _COMMON_ITALIAN_CONTROL_TYPOS.get(word.casefold(), word) for word in words
+    )
+    targets = [normalized_target]
+    simplified_target = _ITALIAN_CLIMATE_ROOM_PHRASE.sub(
+        "di ",
+        normalized_target,
+    )
+    if simplified_target.casefold() != normalized_target.casefold():
+        targets.append(simplified_target)
+    return tuple((action, candidate) for candidate in targets)

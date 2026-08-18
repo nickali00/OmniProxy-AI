@@ -124,7 +124,10 @@ such as `accendi il condizionatore di Nicola` to Home Assistant's native intent
 handler because the standard Italian `HassTurnOn` sentence set does not include
 the `climate` domain. Add `condizionatore di Nicola` as an alias on the actual
 `climate.*` entity, not on its separate temperature sensor. Pronouns such as
-`accendilo` are intentionally not resolved to a device.
+`accendilo` are intentionally not resolved to a device. The connector accepts
+the longer form `condizionatore della stanza di Nicola` and normalizes a small
+set of unambiguous speech-to-text mistakes, while final target matching remains
+inside Home Assistant.
 
 ## 5. Let the agent read home states
 
