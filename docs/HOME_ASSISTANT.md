@@ -122,14 +122,14 @@ the LLM is not allowed to invent or execute a service call.
 For Italian climate commands, the connector safely bridges explicit phrases
 such as `accendi il condizionatore di Nicola` to Home Assistant's native intent
 handler because the standard Italian `HassTurnOn` sentence set does not include
-the `climate` domain. Add `condizionatore di Nicola` as an alias on the actual
-`climate.*` entity, not on its separate temperature sensor. Pronouns such as
-`accendilo` are intentionally not resolved to a device. The connector accepts
-the longer form `condizionatore della stanza di Nicola` and normalizes a small
-set of unambiguous speech-to-text mistakes, while final target matching remains
-inside Home Assistant. Climate entities whose configured name contains
-`temperatura`, such as `temperatura stanza Nicola`, are also routed through the
-same safe native intent handler.
+the `climate` domain. It resolves every exposed `climate.*` entity by its name,
+entity ID, alias or area, even when the provider-generated name ends in
+`Room Temperature`. The match must identify exactly one climate entity; an
+ambiguous target is never executed. Add a clear alias to the actual `climate.*`
+entity, not to its separate temperature sensor, when two units share a similar
+name. Pronouns such as `accendilo` are intentionally not resolved to a device.
+All final matching and execution remains inside Home Assistant and is limited
+to entities explicitly exposed to Assist.
 
 ## 5. Let the agent read home states
 

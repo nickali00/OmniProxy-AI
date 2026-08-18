@@ -72,7 +72,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.4.4"
+    assert manifest["version"] == "0.4.5"
 
 
 @pytest.mark.parametrize(
@@ -168,21 +168,34 @@ def test_polite_italian_controls_get_a_local_assist_candidate(phrase, normalized
     [
         (
             "accendi il condizionatore di Nicola",
-            ("turn_on", "condizionatore di Nicola"),
+            (
+                ("turn_on", "condizionatore di Nicola"),
+                ("turn_on", "Nicola"),
+            ),
         ),
         (
             "spegni il climatizzatore della camera",
-            ("turn_off", "climatizzatore della camera"),
+            (
+                ("turn_off", "climatizzatore della camera"),
+                ("turn_off", "camera"),
+            ),
         ),
         (
             "attiva l'aria condizionata di Nicola",
-            ("turn_on", "aria condizionata di Nicola"),
+            (
+                ("turn_on", "aria condizionata di Nicola"),
+                ("turn_on", "Nicola"),
+            ),
         ),
         (
             "accendi temperatura stanza Nicola",
-            ("turn_on", "temperatura stanza Nicola"),
+            (
+                ("turn_on", "temperatura stanza Nicola"),
+                ("turn_on", "stanza Nicola"),
+            ),
         ),
-        ("accendi la luce di Nicola", None),
+        ("accendi salone TV", (("turn_on", "salone TV"),)),
+        ("accendi la luce di Nicola", (("turn_on", "luce di Nicola"),)),
         ("accendilo", None),
     ],
 )
@@ -195,7 +208,7 @@ def test_explicit_italian_climate_commands_get_a_safe_direct_intent(
     if expected is None:
         assert actual == ()
     else:
-        assert actual == (expected,)
+        assert actual == expected
 
 
 def test_climate_control_normalizes_safe_room_phrase_and_common_typo():
@@ -205,8 +218,61 @@ def test_climate_control_normalizes_safe_room_phrase_and_common_typo():
         "accendi condizionatore derlla stanza di nicola"
     ) == (
         ("turn_on", "condizionatore della stanza di nicola"),
+        ("turn_on", "stanza di nicola"),
         ("turn_on", "condizionatore di nicola"),
+        ("turn_on", "nicola"),
     )
+
+
+@pytest.mark.parametrize(
+    ("target", "expected"),
+    [
+        ("condizionatore di Nicola", "climate.stanza_nicola_room_temperature"),
+        ("condizionatore salone TV", "climate.salone_tv_room_temperature"),
+        ("condizionatore cucina", "climate.cucina_room_temperature"),
+        ("condizionatore cucina 80", "climate.cucina_80_room_temperature"),
+        ("luce di Nicola", None),
+    ],
+)
+def test_resolves_all_exposed_climate_names_without_provider_suffixes(
+    target, expected
+):
+    state_context = _load_state_context_module()
+    entity_ids = (
+        "climate.cucina_80_room_temperature",
+        "climate.cucina_room_temperature",
+        "climate.garage_room_temperature",
+        "climate.salone_biliardo_room_temperature",
+        "climate.salone_cucina_room_temperature",
+        "climate.salone_svago_room_temperature",
+        "climate.salone_tv_room_temperature",
+        "climate.salotto_room_temperature",
+        "climate.soggiorno_80_room_temperature",
+        "climate.sopra_room_temperature",
+        "climate.stanza_da_letto_room_temperature",
+        "climate.stanza_nicola_room_temperature",
+        "climate.stanza_verde_room_temperature",
+        "climate.studio_room_temperature",
+    )
+    states = [
+        SimpleNamespace(
+            entity_id=entity_id,
+            name=entity_id.partition(".")[2].replace("_", " ").title(),
+        )
+        for entity_id in entity_ids
+    ]
+    hass = SimpleNamespace(
+        states=SimpleNamespace(async_all=lambda _domains=None: states)
+    )
+
+    actual = state_context.resolve_exposed_climate_entity_id(
+        hass,
+        target,
+        should_expose=lambda _entity_id: True,
+        metadata_resolver=lambda _state: ((), None),
+    )
+
+    assert actual == expected
 
 
 def test_conversation_bridges_climate_commands_through_home_assistant_intents():

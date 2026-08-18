@@ -31,7 +31,7 @@ _ITALIAN_DIRECT_CLIMATE_COMMAND = re.compile(
     r"(?P<target>.+?)\s*[?.!]*$",
     re.IGNORECASE,
 )
-_ITALIAN_CLIMATE_TARGET = re.compile(
+_ITALIAN_CLIMATE_NOUN = re.compile(
     r"\b(?:clima|climatizzatore|condizionatore|temperatura|termostato)\b|"
     r"\baria\s+condizionata\b",
     re.IGNORECASE,
@@ -42,6 +42,11 @@ _COMMON_ITALIAN_CONTROL_TYPOS = {
 }
 _ITALIAN_CLIMATE_ROOM_PHRASE = re.compile(
     r"\b(?:della|nella)\s+(?:stanza|camera)\s+di\s+",
+    re.IGNORECASE,
+)
+_ITALIAN_LEADING_TARGET_FILLERS = re.compile(
+    r"^(?:(?:di|del|dello|della|dei|degli|delle|in|nel|nello|nella|nei|"
+    r"negli|nelle)\s+)+",
     re.IGNORECASE,
 )
 
@@ -69,13 +74,11 @@ def looks_like_control_command(text: str) -> bool:
 
 
 def local_climate_control_candidates(text: str) -> tuple[tuple[str, str], ...]:
-    """Return safe target variants for an explicit Italian climate command."""
+    """Return target variants for Home Assistant's climate-only fallback."""
     match = _ITALIAN_DIRECT_CLIMATE_COMMAND.match(text)
     if match is None:
         return ()
     target = match.group("target").strip()
-    if not _ITALIAN_CLIMATE_TARGET.search(target):
-        return ()
     action = (
         "turn_on"
         if match.group("verb").lower() in _TURN_ON_WORDS
@@ -85,11 +88,26 @@ def local_climate_control_candidates(text: str) -> tuple[tuple[str, str], ...]:
     normalized_target = " ".join(
         _COMMON_ITALIAN_CONTROL_TYPOS.get(word.casefold(), word) for word in words
     )
-    targets = [normalized_target]
-    simplified_target = _ITALIAN_CLIMATE_ROOM_PHRASE.sub(
-        "di ",
+    targets: list[str] = []
+    for candidate in (
         normalized_target,
-    )
-    if simplified_target.casefold() != normalized_target.casefold():
-        targets.append(simplified_target)
+        _ITALIAN_CLIMATE_ROOM_PHRASE.sub("di ", normalized_target),
+    ):
+        candidate = " ".join(candidate.split()).strip()
+        if candidate and candidate.casefold() not in {
+            item.casefold() for item in targets
+        }:
+            targets.append(candidate)
+
+        # Provider-created climate entities often have names such as
+        # "Garage" or "Stanza Nicola Room Temperature". Also try the spoken
+        # location without the generic appliance noun; final matching remains
+        # restricted to exposed climate.* entities by Home Assistant.
+        location = _ITALIAN_CLIMATE_NOUN.sub(" ", candidate)
+        location = _ITALIAN_LEADING_TARGET_FILLERS.sub("", location.strip())
+        location = " ".join(location.split()).strip()
+        if location and location.casefold() not in {
+            item.casefold() for item in targets
+        }:
+            targets.append(location)
     return tuple((action, candidate) for candidate in targets)

@@ -38,7 +38,10 @@ from .local_intents import (
     local_intent_candidates,
     looks_like_control_command,
 )
-from .state_context import build_exposed_state_context
+from .state_context import (
+    build_exposed_state_context,
+    resolve_exposed_climate_entity_id,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -114,11 +117,12 @@ class OmniProxyConversationEntity(
                 )
 
         # The official Italian HassTurnOn/HassTurnOff sentence set currently
-        # excludes the climate domain. Bridge only explicit climate commands
-        # through Home Assistant's own intent handler. Target resolution still
-        # honors Assist exposure, aliases, duplicate-name checks and the
-        # original request context; no arbitrary service name comes from the
-        # model.
+        # excludes the climate domain. After normal Assist matching fails, try
+        # the spoken target again through Home Assistant's own intent handler,
+        # constrained to climate.*. This also supports provider-generated names
+        # such as "Stanza Nicola Room Temperature". Target resolution still
+        # honors Assist exposure, aliases, ambiguity checks and the original
+        # request context; no arbitrary service name comes from the model.
         for candidate in candidates:
             for action, target in local_climate_control_candidates(candidate):
                 intent_type = (
@@ -126,33 +130,43 @@ class OmniProxyConversationEntity(
                     if action == "turn_on"
                     else intent.INTENT_TURN_OFF
                 )
-                try:
-                    local_response = await intent.async_handle(
-                        self.hass,
-                        DOMAIN,
-                        intent_type,
-                        slots={
-                            "name": {"value": target, "text": target},
-                            "domain": {"value": "climate"},
-                        },
-                        text_input=candidate,
-                        context=user_input.context,
-                        language=user_input.language,
-                        assistant=conversation.DOMAIN,
+                intent_targets = [target]
+                if resolved_entity_id := resolve_exposed_climate_entity_id(
+                    self.hass,
+                    target,
+                ):
+                    intent_targets.append(resolved_entity_id)
+                for intent_target in dict.fromkeys(intent_targets):
+                    try:
+                        local_response = await intent.async_handle(
+                            self.hass,
+                            DOMAIN,
+                            intent_type,
+                            slots={
+                                "name": {
+                                    "value": intent_target,
+                                    "text": target,
+                                },
+                                "domain": {"value": "climate"},
+                            },
+                            text_input=candidate,
+                            context=user_input.context,
+                            language=user_input.language,
+                            assistant=conversation.DOMAIN,
+                        )
+                    except intent.IntentError:
+                        continue
+                    speech = local_response.speech.get("plain", {}).get("speech", "")
+                    chat_log.async_add_assistant_content_without_tools(
+                        conversation.AssistantContent(
+                            agent_id=user_input.agent_id,
+                            content=speech,
+                        )
                     )
-                except intent.IntentError:
-                    continue
-                speech = local_response.speech.get("plain", {}).get("speech", "")
-                chat_log.async_add_assistant_content_without_tools(
-                    conversation.AssistantContent(
-                        agent_id=user_input.agent_id,
-                        content=speech,
+                    return conversation.ConversationResult(
+                        response=local_response,
+                        conversation_id=chat_log.conversation_id,
                     )
-                )
-                return conversation.ConversationResult(
-                    response=local_response,
-                    conversation_id=chat_log.conversation_id,
-                )
 
         options = self.entry.options
         system_prompt = str(

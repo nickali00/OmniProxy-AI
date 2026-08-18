@@ -35,6 +35,19 @@ _SAFE_ATTRIBUTES = (
 _MAX_TEXT_LENGTH = 200
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 _CATALOG_TOKEN = "__entity_catalog__"
+_CLIMATE_IDENTITY_NOISE = {
+    "air",
+    "aria",
+    "camera",
+    "climate",
+    "conditioned",
+    "conditioner",
+    "condizionata",
+    "room",
+    "stanza",
+    "temperature",
+    "thermostat",
+}
 _STOP_WORDS = {
     "a",
     "al",
@@ -283,6 +296,59 @@ def _entity_voice_metadata(
     if area_id and (area_entry := ar.async_get(hass).async_get_area(area_id)):
         area_name = str(area_entry.name)
     return aliases, area_name
+
+
+def resolve_exposed_climate_entity_id(
+    hass: HomeAssistant,
+    target: str,
+    *,
+    should_expose: Callable[[str], bool] | None = None,
+    metadata_resolver: (
+        Callable[[State], tuple[Sequence[str], str | None]] | None
+    ) = None,
+) -> str | None:
+    """Resolve one exposed climate entity from a spoken room/device target.
+
+    This deterministic fallback only accepts an unambiguous token match. It
+    never returns sensors or another controllable domain.
+    """
+    if should_expose is None:
+        from homeassistant.components import conversation
+        from homeassistant.components.homeassistant.exposed_entities import (
+            async_should_expose,
+        )
+
+        should_expose = lambda entity_id: async_should_expose(
+            hass,
+            conversation.DOMAIN,
+            entity_id,
+        )
+
+    target_tokens = _tokens(target) - _CLIMATE_IDENTITY_NOISE
+    if not target_tokens:
+        return None
+
+    matches: set[str] = set()
+    for state in hass.states.async_all(["climate"]):
+        if not state.entity_id.startswith("climate.") or not should_expose(
+            state.entity_id
+        ):
+            continue
+        aliases, area_name = (
+            metadata_resolver(state)
+            if metadata_resolver is not None
+            else _entity_voice_metadata(hass, state)
+        )
+        names = [state.entity_id.partition(".")[2], str(state.name), *aliases]
+        if area_name:
+            names.append(area_name)
+        if any(
+            (_tokens(name) - _CLIMATE_IDENTITY_NOISE) == target_tokens
+            for name in names
+        ):
+            matches.add(state.entity_id)
+
+    return next(iter(matches)) if len(matches) == 1 else None
 
 
 def build_exposed_state_context(
