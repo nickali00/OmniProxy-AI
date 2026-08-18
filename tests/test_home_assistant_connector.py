@@ -60,7 +60,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.3.1"
+    assert manifest["version"] == "0.3.2"
 
 
 @pytest.mark.parametrize(
@@ -184,3 +184,68 @@ def test_state_context_sends_only_relevant_exposed_entities():
     ]
     assert payload["entities"][0]["state"] == "42"
     assert "private_token" not in payload["entities"][0]
+
+
+def test_state_context_understands_sensor_catalog_questions():
+    state_context = _load_state_context_module()
+    now = datetime(2026, 8, 18, 12, 0, tzinfo=UTC)
+    states = [
+        SimpleNamespace(
+            entity_id="sensor.phone_battery",
+            name="Batteria telefono",
+            state="42",
+            attributes={"device_class": "battery"},
+            last_changed=now,
+        ),
+        SimpleNamespace(
+            entity_id="binary_sensor.front_door",
+            name="Porta ingresso",
+            state="off",
+            attributes={"device_class": "door"},
+            last_changed=now,
+        ),
+        SimpleNamespace(
+            entity_id="light.kitchen",
+            name="Luce cucina",
+            state="on",
+            attributes={},
+            last_changed=now,
+        ),
+    ]
+    hass = SimpleNamespace(states=SimpleNamespace(async_all=lambda: states))
+
+    rendered = state_context.build_exposed_state_context(
+        hass,
+        "Quali sensori riesci a vedere?",
+        should_expose=lambda _entity_id: True,
+    )
+    payload = json.loads(rendered.rsplit("\n", maxsplit=1)[-1])
+
+    assert payload["selection_mode"] == "catalog"
+    assert [item["entity_id"] for item in payload["entities"]] == [
+        "binary_sensor.front_door",
+        "sensor.phone_battery",
+    ]
+    assert "DO have read-only visibility" in rendered
+
+
+def test_state_context_can_list_all_visible_entities_on_explicit_request():
+    state_context = _load_state_context_module()
+    state = SimpleNamespace(
+        entity_id="light.kitchen",
+        name="Luce cucina",
+        state="on",
+        attributes={},
+        last_changed=None,
+    )
+    hass = SimpleNamespace(states=SimpleNamespace(async_all=lambda: [state]))
+
+    rendered = state_context.build_exposed_state_context(
+        hass,
+        "Non puoi vedere tu le entità?",
+        should_expose=lambda _entity_id: True,
+    )
+    payload = json.loads(rendered.rsplit("\n", maxsplit=1)[-1])
+
+    assert payload["selection_mode"] == "catalog"
+    assert payload["entities"][0]["entity_id"] == "light.kitchen"

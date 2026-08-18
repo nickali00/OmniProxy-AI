@@ -118,6 +118,7 @@ options with **Read relevant entities exposed to Assist**.
 
 Examples:
 
+- `Quali sensori riesci a vedere?` (lists only exposed sensor entities)
 - `Quali batterie sono sotto il 20%?`
 - `Che temperatura c'è in cucina?`
 - `La finestra della camera è aperta?`

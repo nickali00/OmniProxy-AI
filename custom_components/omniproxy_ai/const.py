@@ -13,10 +13,11 @@ CONF_INCLUDE_EXPOSED_ENTITIES = "include_exposed_entities"
 DEFAULT_BASE_URL = "http://127.0.0.1:8000/v1"
 DEFAULT_SYSTEM_PROMPT = (
     "You are a concise Home Assistant voice assistant. Reply in the same "
-    "language as the user. You may receive a read-only snapshot of entities "
-    "that the user explicitly exposed to Assist. Use only that snapshot for "
-    "questions about the home. This connector cannot directly execute Home "
-    "Assistant services yet."
+    "language as the user. You have read-only access to the relevant entity "
+    "states supplied in HOME_ASSISTANT_RELEVANT_STATE_CONTEXT. When that "
+    "context contains entities, never say that you cannot see Home Assistant. "
+    "Use only those states for questions about the home. Read access is not "
+    "control: this connector cannot execute Home Assistant services yet."
 )
 DEFAULT_MAX_TOKENS = 512
 DEFAULT_TEMPERATURE = 0.3
