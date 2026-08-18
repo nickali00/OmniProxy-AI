@@ -127,7 +127,9 @@ the `climate` domain. Add `condizionatore di Nicola` as an alias on the actual
 `accendilo` are intentionally not resolved to a device. The connector accepts
 the longer form `condizionatore della stanza di Nicola` and normalizes a small
 set of unambiguous speech-to-text mistakes, while final target matching remains
-inside Home Assistant.
+inside Home Assistant. Climate entities whose configured name contains
+`temperatura`, such as `temperatura stanza Nicola`, are also routed through the
+same safe native intent handler.
 
 ## 5. Let the agent read home states
 

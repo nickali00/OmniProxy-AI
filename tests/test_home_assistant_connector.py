@@ -72,7 +72,7 @@ def test_manifest_is_a_hacs_installable_config_flow():
     assert manifest["domain"] == "omniproxy_ai"
     assert manifest["config_flow"] is True
     assert manifest["dependencies"] == ["conversation"]
-    assert manifest["version"] == "0.4.3"
+    assert manifest["version"] == "0.4.4"
 
 
 @pytest.mark.parametrize(
@@ -177,6 +177,10 @@ def test_polite_italian_controls_get_a_local_assist_candidate(phrase, normalized
         (
             "attiva l'aria condizionata di Nicola",
             ("turn_on", "aria condizionata di Nicola"),
+        ),
+        (
+            "accendi temperatura stanza Nicola",
+            ("turn_on", "temperatura stanza Nicola"),
         ),
         ("accendi la luce di Nicola", None),
         ("accendilo", None),

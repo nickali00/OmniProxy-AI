@@ -32,7 +32,7 @@ _ITALIAN_DIRECT_CLIMATE_COMMAND = re.compile(
     re.IGNORECASE,
 )
 _ITALIAN_CLIMATE_TARGET = re.compile(
-    r"\b(?:clima|climatizzatore|condizionatore|termostato)\b|"
+    r"\b(?:clima|climatizzatore|condizionatore|temperatura|termostato)\b|"
     r"\baria\s+condizionata\b",
     re.IGNORECASE,
 )
