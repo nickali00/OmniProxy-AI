@@ -1,0 +1,8 @@
+{
+  "scope": "temporary_copy_of_read_only_backup",
+  "migration_passes": 2,
+  "old_tables_verified_by_row_hash": 36,
+  "integrity_and_foreign_keys": true,
+  "passed": true,
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

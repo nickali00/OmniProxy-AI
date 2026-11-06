@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Team · OmniProxy</title><link rel="stylesheet" href="/static/dashboard.css"><script defer src="/static/team.js"></script></head>
+<body><main class="app-shell"><h1>OmniProxy · Team</h1><p id="identity"></p><button id="logout" type="button">Termina sessione</button><p id="team-status" role="status"></p>
+<label for="tenant">Organizzazione</label><select id="tenant"></select><label for="project">Progetto</label><select id="project"></select>
+<form id="project-form"><h2>Nuovo progetto</h2><label for="project-name">Nome</label><input id="project-name" minlength="2" maxlength="80" required><button>Crea progetto</button></form>
+<section><h2>Profili disponibili</h2><p>I profili di accesso a modelli e strumenti vengono pubblicati dall’operatore dell’istanza.</p><ul id="profiles"></ul></section>
+<form id="key-form"><h2 id="key-title">Nuova chiave applicativa</h2><label for="key-name">Nome</label><input id="key-name" minlength="2" maxlength="80" required><label for="key-profile">Profilo</label><select id="key-profile" required></select>
+<p>Lascia vuoto un limite token per disattivarlo. Restano validi i limiti tecnici del modello.</p>
+<label for="key-input">Token massimi in ingresso</label><input id="key-input" type="number" min="1" max="2000000">
+<label for="key-output">Token massimi in uscita</label><input id="key-output" type="number" min="1" max="128000">
+<label for="key-context">Token massimi di contesto</label><input id="key-context" type="number" min="512" max="2000000">
+<label for="key-mode">Contesto eccedente</label><select id="key-mode"><option value="reject">Rifiuta</option><option value="summarize">Compatta con sintesi</option></select>
+<label for="key-period">Budget</label><select id="key-period"><option value="unlimited">Senza limiti</option><option value="daily">Giornaliero</option><option value="weekly">Settimanale</option><option value="monthly">Mensile</option></select><label for="key-budget">Token nel periodo</label><input id="key-budget" type="number" min="1" max="1000000000000" disabled>
+<button>Salva</button><button id="key-reset" type="button">Nuova chiave</button></form>
+<section><h2>Chiave creata</h2><p>Il segreto compare solo alla creazione. Conservalo prima di lasciare la pagina.</p><pre id="new-secret"></pre><button id="clear-secret" type="button">Nascondi</button></section>
+<section><h2>Chiavi del progetto</h2><ul id="keys"></ul></section>
+</main></body></html>

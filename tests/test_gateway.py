@@ -94,6 +94,31 @@ def test_local_model_routing(tmp_path, monkeypatch):
     assert response.json()["choices"][0]["message"]["content"] == "risposta locale"
 
 
+def test_validation_error_does_not_echo_request_content(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "database_path", tmp_path / "gateway.sqlite3")
+    monkeypatch.setattr(settings, "bootstrap_api_key", API_KEY)
+    marker = "PRIVATE_PROMPT_MARKER_839"
+
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        response = client.post(
+            "/v1/chat/completions",
+            headers=_headers(),
+            json={
+                "model": "local",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [{"type": "input_audio", "input_audio": {"data": marker}}],
+                    }
+                ],
+            },
+        )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "validation_error"
+    assert marker not in response.text
+
+
 def test_streaming_is_openai_compatible(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "database_path", tmp_path / "gateway.sqlite3")
     monkeypatch.setattr(settings, "bootstrap_api_key", API_KEY)

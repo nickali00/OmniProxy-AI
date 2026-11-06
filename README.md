@@ -6,11 +6,17 @@
 > applicazioni e nei tuoi workflow tramite un'unica API locale
 > OpenAI-compatible, mentre tu controlli richieste, token, latenza e quote.**
 
-**Stato:** Phase 1 public preview · **Builder sperimentale:** disabilitato di
-default · **Host:** Linux / Windows (WSL2) / macOS · **Dashboard:** EN / IT /
+**Stato:** 1.0.0-rc.3, candidata · **Builder sperimentale:** disabilitato di
+default · **Verificato:** Linux; Windows/WSL2 e macOS da verificare · **Dashboard:** EN / IT /
 ES / FR
 
+[Contratto API 1 e OpenAPI](spec/README.md) ·
+[Suite di conformità HTTP e SDK](conformance/README.md) ·
+[Compatibilità ed esclusioni](spec/compatibility.md) ·
+[Changelog e upgrade](CHANGELOG.md)
+
 [English documentation](README.en.md) ·
+[Wiki del progetto](docs/wiki/README.md) ·
 [Guida video](docs/DEMO_VIDEO.md) ·
 [Sicurezza](SECURITY.md) ·
 [Contribuire](CONTRIBUTING.md) ·
@@ -74,6 +80,11 @@ In alternativa configurare un reverse proxy HTTPS con autenticazione
 amministrativa, limiti di richiesta e una allowlist che esponga soltanto
 `/v1/*`. La dashboard e le route amministrative devono rimanere private.
 **Non esporre direttamente la porta `8000` su Internet.**
+
+Per la LAN è disponibile il [profilo HTTPS con login operatore](docs/wiki/sicurezza-https.md).
+In quel profilo tutti i client usano la base HTTPS effettiva e la CA della
+propria istanza; le chiavi esistenti restano valide e le API HTTP rispondono 426.
+Gli URL HTTP sopra descrivono soltanto la configurazione locale predefinita.
 
 ## A cosa serve
 
@@ -382,6 +393,45 @@ curl -N http://127.0.0.1:8000/v1/chat/completions \
   }'
 ```
 
+### Immagini inline (`image_url`)
+
+Ogni chiave gestita dispone di limiti separati per token di ingresso, uscita
+e contesto totale, con scelta «Senza limite del gateway» per ciascuno. Sono
+disponibili budget giornalieri, settimanali, mensili o senza tetto e sintesi
+opzionale della cronologia: [configurazione e semantica](docs/wiki/limiti-token.md).
+Gli [allegati multimodali](docs/wiki/allegati-multimodali.md) comprendono anche
+PDF, Office, testo, video campionato e trascrizione audio configurabile.
+
+Le API gestite Ollama e Codex accettano contenuti multimodali compatibili con
+Chat Completions. L'immagine deve essere incorporata come data URL JPEG, PNG o
+WebP; OmniProxy non scarica URL HTTP/HTTPS, evitando richieste server-side verso
+destinazioni arbitrarie.
+
+```json
+{
+  "model": "nome-api-gestita",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/jpeg;base64,BASE64_DEL_JPEG"
+          }
+        },
+        {"type": "text", "text": "Descrivi ciò che vedi"}
+      ]
+    }
+  ]
+}
+```
+
+Sono ammesse fino a 8 immagini, massimo 4 MiB ciascuna e 8 MiB complessivi.
+Nel broker Codex i file esistono soltanto durante l'inferenza e vengono rimossi
+subito dopo. I broker Antigravity e Claude rifiutano esplicitamente le richieste
+con immagini finché non avranno un trasporto visivo nativo.
+
 ## Catalogo modelli e API vincolate
 
 La release pubblica della dashboard è disponibile in inglese, italiano,
@@ -567,6 +617,42 @@ Riferimenti ufficiali:
 - [piani e quote Antigravity](https://antigravity.google/docs/plans);
 - [release del client Antigravity](https://github.com/google-antigravity/antigravity-cli/releases).
 
+## Skills e server MCP
+
+La pagina **Skills & MCP** permette di estendere ogni API gestita con:
+
+- Skill Markdown riutilizzabili, aggiunte come istruzioni di sistema ma mai
+  eseguite come codice;
+- tool scoperti da server MCP Streamable HTTP e autorizzati singolarmente per
+  ciascuna API.
+
+I token Bearer MCP restano cifrati nel vault. La connessione a un server non
+abilita automaticamente i suoi tool: l'amministratore deve selezionare una
+allowlist esplicita nel profilo API. La
+[guida Skills e MCP](docs/SKILLS_MCP.md) descrive configurazione, rete e
+limiti di sicurezza.
+
+## Home Assistant
+
+OmniProxy include un connettore personalizzato per Home Assistant che aggiunge
+un agente conversazionale selezionabile nelle pipeline **Assist**. La
+configurazione richiede soltanto Base URL e una chiave locale dedicata: modello,
+provider e reasoning vengono rilevati automaticamente dal profilo API gestito.
+
+Installazione rapida:
+
+1. creare dalla dashboard un'API chiamata **Home Assistant**;
+2. aggiungere questo repository a HACS come categoria **Integration**;
+3. installare **OmniProxy AI** e riavviare Home Assistant;
+4. aprire **Impostazioni > Dispositivi e servizi > Aggiungi integrazione**;
+5. inserire `http://127.0.0.1:8000/v1` e la chiave `sk-local-...`.
+
+Se Home Assistant condivide la rete Docker di OmniProxy, usare invece
+`http://gateway:8000/v1`. Se è su un altro host, non esporre la dashboard senza
+un firewall limitato all'IP di Home Assistant. La
+[guida completa](docs/HOME_ASSISTANT.md) contiene configurazione HACS, rete
+Docker, LAN e selezione dell'agente Assist.
+
 ## n8n
 
 Nel nodo **HTTP Request**:
@@ -635,7 +721,9 @@ sono registrati nei log dei broker.
   stima per i modelli Ollama che adottano un tokenizer differente.
 - SQLite è adatto a una singola replica. Prima dello scaling orizzontale va
   sostituito con PostgreSQL o un servizio centralizzato.
-- Non sono ancora implementati tool calls, immagini, audio e `/v1/responses`.
+- `image_url` inline è supportato da Ollama e Codex; non sono ancora
+  implementati tool calls, audio, immagini nei broker Antigravity/Claude e
+  `/v1/responses`.
 - I provider cloud funzionano soltanto quando l'account è collegato e il piano
   consente l'uso del rispettivo client ufficiale.
 - Lo streaming cloud è compatibile SSE ma, per ora, viene emesso dopo il

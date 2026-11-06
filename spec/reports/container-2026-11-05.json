@@ -1,0 +1,13 @@
+{
+  "scope": "built_image_ephemeral_database",
+  "non_root_read_only": true,
+  "image_pdf_video_parsers": true,
+  "speech_generation": true,
+  "input_output_limits": true,
+  "real_ollama": true,
+  "budget_accounted": true,
+  "citations": true,
+  "team_identity_profile_key_revocation": true,
+  "passed": true,
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

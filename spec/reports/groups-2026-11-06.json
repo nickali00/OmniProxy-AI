@@ -1,0 +1,26 @@
+{
+  "release": "1.0.0-rc.2",
+  "date": "2026-11-06",
+  "gateway_image": "sha256:8690a2f0668212e4ebef93369bb386d4764a261fcf328bf3485e9583d6429d94",
+  "python_tests": 254,
+  "node_tests": 16,
+  "postgres_crud_migration_restore": true,
+  "frontend_scope": "actual_renderer_minimal_dom_not_browser",
+  "upgrade": {
+    "scope": "temporary_copy_of_read_only_backup",
+    "migration_passes": 2,
+    "old_tables_verified_by_row_hash": 40,
+    "integrity_and_foreign_keys": true,
+    "passed": true
+  },
+  "live": {
+    "release": "1.0.0-rc.2",
+    "scope": "running_gateway_temporary_group_and_profile",
+    "create_move_rename_collapse_delete": true,
+    "key_model_limits_preserved": true,
+    "dashboard_assets_updated": true,
+    "temporary_resources_removed": true,
+    "passed": true
+  },
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

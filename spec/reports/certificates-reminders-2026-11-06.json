@@ -1,0 +1,89 @@
+{
+  "date": "2026-11-06",
+  "scope": "private_LAN_certificate_lifetime_and_Casa_degli_Agenti_reminders",
+  "python_tests": 273,
+  "focused_tests": 19,
+  "requested_lifetime": "five_calendar_years_for_current_server_certificate",
+  "certificate": {
+    "duration_days": 1826
+  },
+  "disposable_migration_test": {
+    "passed": true,
+    "server_lifetime_days": 1826.0,
+    "trusted_root_preserved": true,
+    "old_intermediate_and_leaf_backed_up": true
+  },
+  "https_boundary": {
+    "scope": "https_boundary",
+    "passed": true,
+    "tls_verified": true,
+    "accepted_protocols": [
+      "TLSv1.2",
+      "TLSv1.3"
+    ],
+    "rejected_protocols": [
+      "TLSv1",
+      "TLSv1_1"
+    ],
+    "unauthenticated_admin_denied": true,
+    "response_headers_verified": true,
+    "http_browser_redirect_and_api_refusal": true
+  },
+  "caddy_internal_issuer_lifetime": "1826d",
+  "caddy_intermediate_lifetime": "2192d",
+  "trusted_CA_changed": false,
+  "private_CA_key_exported": false,
+  "operator_session_unchanged": true,
+  "reminders": {
+    "telegram_setup_confirmed": true,
+    "restart_persisted_without_duplicate_delivery": true,
+    "receipts": {
+      "receipts": {
+        "sent": 1
+      },
+      "cached_certificates": 2
+    },
+    "service_health": "healthy",
+    "running_image_id": "sha256:ee5a4d9306288be4b96ec0662bbae40bf31156fcc30811bf9d715e030793fc7b"
+  },
+  "notification_policy": {
+    "private_owner_chat_only": true,
+    "polls_telegram": false,
+    "check_interval_seconds": 3600,
+    "expiry_threshold_days": [
+      90,
+      30,
+      7,
+      1,
+      0
+    ],
+    "tracks_real_certificates_after_renewal": true,
+    "normal_offline_notices": false,
+    "offline_uses_last_verified_expiry": true,
+    "TLS_validation_failure_notice": "at most once per UTC day",
+    "ambiguous_delivery": "persist_uncertain_without_automatic_retry",
+    "requires": [
+      "monitor host running",
+      "container running",
+      "Internet and authorized Telegram bot"
+    ],
+    "no_future_delivery_or_user_read_guarantee": true
+  },
+  "deployment_files": {
+    "source": "scripts/https_reminders.py",
+    "source_sha256": "d7c3766e782ea2e433aa05d2ca23d377ee6d66a41d27eb46a81f09998d832212",
+    "compose": "deploy/casa/compose.https-reminders.yaml"
+  },
+  "tls_storage_permissions": {
+    "root": "0700 uid10001 gid10001",
+    "caddy": "0700 uid10001 gid10001",
+    "private_keys": "0600"
+  },
+  "runtime_gateway_image_unchanged": true,
+  "changes_are_proxy_mounted_configuration_and_Casa_external_helper": true,
+  "manual_windows_CA_installation_still_required_if_not_already_installed": true,
+  "focused_rerun_notes": [
+    "19 passed; one rerun emitted two aiosqlite test-teardown warnings (closed event loop/thread and deprecated loop lookup); full 273-test gate completed without a warning summary."
+  ],
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

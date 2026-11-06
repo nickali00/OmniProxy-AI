@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import hmac
 import json
+import os
+import re
 import subprocess
 import threading
 import time
 import uuid
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
+from pathlib import Path
 
 HOST = "0.0.0.0"
 PORT = 8790
 WORKSPACE = "/workspace"
+CODEX_VERSION_FILE = "/workspace/codex-broker/version.txt"
 MAX_BODY_BYTES = 16_384
 MAX_OUTPUT_CHARACTERS = 16_000
 
@@ -39,6 +43,7 @@ COMMANDS = {
 jobs: dict[str, dict[str, object]] = {}
 jobs_lock = threading.Lock()
 execution_lock = threading.Lock()
+VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$")
 
 
 def public_job(job_id: str) -> dict[str, object] | None:
@@ -90,11 +95,67 @@ def run_job(job_id: str, requested: list[str]) -> None:
             )
 
 
+def run_codex_update(job_id: str, version: str) -> None:
+    time.sleep(1.0)
+    with execution_lock:
+        with jobs_lock:
+            jobs[job_id].update(status="running", started_at=time.time())
+        output = []
+        status = "completed"
+        code = 0
+        for args in (
+            ["docker", "compose", "build", "--build-arg", f"CODEX_CLI_VERSION={version}", "codex-broker"],
+            ["docker", "compose", "up", "-d", "--no-deps", "--force-recreate", "--wait", "--wait-timeout", "180", "codex-broker"],
+            ["docker", "compose", "exec", "-T", "codex-broker", "codex", "--version"],
+        ):
+            try:
+                result = subprocess.run(args, cwd=WORKSPACE, capture_output=True, text=True, timeout=1_200, check=False)
+                code = result.returncode
+                output.append(f"$ {' '.join(args[:3])}\n{result.stdout}\n{result.stderr}")
+                if code != 0 or (args[2] == "exec" and result.stdout.strip() != f"codex-cli {version}"):
+                    status = "failed"
+                    break
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                status, code = "failed", -1
+                output.append(type(exc).__name__)
+                break
+        if status == "completed":
+            try:
+                with open(CODEX_VERSION_FILE, "r+", encoding="utf-8") as handle:
+                    original = handle.read().strip()
+                    if not VERSION_RE.fullmatch(original):
+                        raise ValueError("codex_version_pin_invalid")
+                    handle.seek(0)
+                    handle.write(f"{version}\n")
+                    handle.truncate()
+            except (OSError, ValueError) as exc:
+                status, code = "failed", -1
+                output.append(type(exc).__name__)
+        with jobs_lock:
+            jobs[job_id].update(status=status, return_code=code,
+                output="\n".join(output)[-MAX_OUTPUT_CHARACTERS:], finished_at=time.time())
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "OmniProxyMaintenance/1"
 
     def log_message(self, _format: str, *_args: object) -> None:
         return
+
+    def authorized(self) -> bool:
+        try:
+            configured = os.environ.get("MAINTENANCE_TOKEN_PATH", "")
+            token = Path(configured).read_text().strip() if configured else ""
+            if not 43 <= len(token) <= 128:
+                raise ValueError()
+        except (OSError, ValueError):
+            self.send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "control_auth_not_configured"})
+            return False
+        value = self.headers.get("Authorization", "")
+        if not hmac.compare_digest(value.encode(), ("Bearer " + token).encode()):
+            self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "invalid_control_credential"})
+            return False
+        return True
 
     def send_json(
         self,
@@ -110,9 +171,11 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(content)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         if self.path == "/healthz":
             self.send_json(HTTPStatus.OK, {"status": "ok"})
+            return
+        if not self.authorized():
             return
         if self.path.startswith("/v1/jobs/"):
             job_id = self.path.removeprefix("/v1/jobs/")
@@ -127,7 +190,37 @@ class Handler(BaseHTTPRequestHandler):
             return
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
+        if not self.authorized():
+            return
+        with jobs_lock:
+            active = sum(job["status"] in {"queued", "running"} for job in jobs.values())
+            if len(jobs) >= 1000:
+                for identifier in list(jobs):
+                    if jobs[identifier]["status"] in {"completed", "failed"}:
+                        del jobs[identifier]
+                        if len(jobs) < 1000:
+                            break
+        if active >= 2 or len(jobs) >= 1000:
+            self.send_json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "control_busy"})
+            return
+        if self.path == "/v1/codex/update":
+            try:
+                length = int(self.headers.get("Content-Length", "0"))
+                if not 1 <= length <= 200:
+                    raise ValueError()
+                version = json.loads(self.rfile.read(length))["version"]
+                if not isinstance(version, str) or not VERSION_RE.fullmatch(version):
+                    raise ValueError()
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                self.send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid_version"})
+                return
+            job_id = str(uuid.uuid4())
+            with jobs_lock:
+                jobs[job_id] = {"id": job_id, "status": "queued", "version": version, "created_at": time.time()}
+            threading.Thread(target=run_codex_update, args=(job_id, version), daemon=True).start()
+            self.send_json(HTTPStatus.ACCEPTED, dict(jobs[job_id]))
+            return
         if self.path != "/v1/commands":
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "not_found"})
             return
@@ -178,4 +271,5 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.ACCEPTED, dict(jobs[job_id]))
 
 
-ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()
+if __name__ == "__main__":
+    ThreadingHTTPServer((HOST, PORT), Handler).serve_forever()

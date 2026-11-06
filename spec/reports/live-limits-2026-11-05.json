@@ -1,0 +1,9 @@
+{
+  "scope": "running_gateway_temporary_profile",
+  "input_cap": true,
+  "output_cap": true,
+  "remove_each_limit": true,
+  "real_ollama": true,
+  "passed": true,
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

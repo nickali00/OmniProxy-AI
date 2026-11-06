@@ -11,6 +11,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from difflib import SequenceMatcher
 from pathlib import Path
+
 import httpx
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -23,23 +24,63 @@ from fastapi.responses import (
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
+from starlette.background import BackgroundTask
 
 from app.auth import ApiKeyAuthMiddleware
+from app.identity import AdministrativeAuthMiddleware, check_auth_mode
+from app.team_api import router as team_router
+from app.job_api import router as job_router
+from app.file_uploads import init_files, resolve_chat_files, router as file_router
+from app.audio_api import router as audio_router
+from app.speech_api import router as speech_router
+from app.image_api import router as image_router
+from app.job_store import init_jobs
+from app.job_tests import init_tests, router as job_tests_router
+from app.shared_capacity import init_capacity
+from app.citations import init_citations, router as citation_router
+from app.job_profiles import router as job_profile_router
+from app.protocol_contract import ContractHeadersMiddleware, router as contract_router
+from app.api_groups import router as api_groups_router
+from app.security import SecurityBoundaryMiddleware, harden_storage_permissions, maintenance_authorization
+from app.network_security import enforce_upstream_transport
+from app.jobs import JobRunner
+from app.inference_limits import InferenceLimits
+from app import deployments, observability, token_budget
+from app.anthropic_api import (
+    AnthropicRequest,
+    from_chat_response as anthropic_from_chat_response,
+    stream_chat_response as anthropic_stream_chat_response,
+    to_chat_request as anthropic_to_chat_request,
+)
+from app.capabilities import (
+    CapabilityContext,
+    apply_capability_context,
+    complete_with_mcp,
+    load_capability_context,
+)
 from app.config import settings
 from app.dashboard_security import require_dashboard_mutation
 from app.database import (
+    McpServerRecord,
     add_build_message,
     build_project_context,
     claim_next_build_phase,
     complete_build_phase_for_message,
     create_build_project,
     create_gateway_api,
+    create_mcp_server,
+    create_skill,
     delete_build_project,
     delete_gateway_api,
+    delete_mcp_server,
+    delete_stored_response,
+    delete_skill,
     ensure_bootstrap_api_key,
     get_build_project,
     get_gateway_api,
     get_gateway_api_for_key,
+    get_stored_response,
+    get_mcp_server,
     get_usage_dashboard,
     init_database,
     list_build_artifacts,
@@ -49,29 +90,54 @@ from app.database import (
     list_build_project_files,
     list_build_projects,
     list_gateway_apis,
+    list_mcp_servers,
+    list_skills,
     mark_build_message_changes_applied,
     ping_database,
     record_usage,
     replace_build_artifacts,
     replace_build_phases,
     replace_build_project_files,
+    save_mcp_server_discovery,
+    save_stored_response,
     set_build_phase_builder_result,
     toggle_api_key_status,
     update_build_project,
     update_gateway_api,
+    update_mcp_server,
+    update_skill,
 )
 from app.errors import GatewayError, openai_error_body
+from app.gemini_api import (
+    GeminiRequest,
+    from_chat_response as gemini_from_chat_response,
+    stream_chat_response as gemini_stream_chat_response,
+    to_chat_request as gemini_to_chat_request,
+)
+from app.mcp_client import McpClientError, McpGatewayClient, normalize_mcp_url
 from app.provider_broker import (
     AntigravityBrokerClient,
     ClaudeBrokerClient,
     CodexBrokerClient,
     ProviderBrokerError,
 )
-from app.providers.cloud_mock import ExternalReasoningMockProvider
-from app.providers.cli_broker import CliBrokerProvider
-from app.providers.ollama import OllamaProvider
 from app.provider_status import dashboard_providers
+from app.provider_vault import ProviderVault, ProviderVaultError
+from app.providers.cli_broker import CliBrokerProvider
+from app.providers.base import TextProvider
+from app.providers.cloud_mock import ExternalReasoningMockProvider
+from app.providers.ollama import OllamaProvider
+from app.providers.openai_compatible import OpenAICompatibleProvider
 from app.routing import ModelRoute, public_models, resolve_model_route
+from app.request_lifecycle import ClientDisconnectMiddleware, RequestLimitsMiddleware, await_connected
+from app.responses_api import (
+    ResponsesRequest,
+    from_chat_input,
+    from_chat_response,
+    input_items,
+    stream_chat_response,
+    to_chat_request,
+)
 from app.schemas import (
     BuildChatRequest,
     BuildFileSnapshot,
@@ -82,10 +148,11 @@ from app.schemas import (
     BuildProjectConfig,
     ChatCompletionRequest,
     GatewayApiConfig,
+    McpServerConfig,
     ProviderAuthCode,
+    SkillConfig,
 )
-from app.token_counter import count_message_tokens, count_text_tokens
-
+from app.token_counter import count_message_tokens, count_request_tokens, count_text_tokens
 
 logging.basicConfig(
     level=getattr(logging, settings.log_level.upper(), logging.INFO),
@@ -118,8 +185,18 @@ BUILD_EXCLUDED_DIRECTORIES = {
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    app.state.authentication_failures = None
+    if settings.require_https and not (settings.dashboard_auth_required or settings.admin_auth_required):
+        raise RuntimeError("HTTPS profile requires authenticated dashboard access")
     await init_database()
+    harden_storage_permissions()
+    await check_auth_mode()
     await ensure_bootstrap_api_key()
+    await init_jobs()
+    await init_tests()
+    await init_files()
+    await init_capacity()
+    await init_citations()
 
     timeout = httpx.Timeout(
         connect=10.0,
@@ -153,11 +230,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.maintenance_http = httpx.AsyncClient(
         base_url=settings.maintenance_runner_url.rstrip("/"),
         timeout=httpx.Timeout(10.0),
+        event_hooks={"request": [maintenance_authorization]},
+        trust_env=False,
     )
     app.state.build_activities = {}
+    app.state.file_processing_slots = asyncio.Semaphore(2)
+    app.state.audio_processing_slots = asyncio.Semaphore(1)
+    app.state.speech_processing_slots = asyncio.Semaphore(2)
+    app.state.image_processing_slots = asyncio.Semaphore(1)
+    app.state.api_request_slots = asyncio.Semaphore(settings.max_concurrent_api_requests)
+    app.state.telemetry = observability.configure()
+    app.state.job_runner = JobRunner(lambda profile, payload: _job_complete(app, profile, payload))
+    app.state.job_runner.start()
     try:
         yield
     finally:
+        await app.state.job_runner.stop()
+        if app.state.telemetry:
+            await asyncio.to_thread(app.state.telemetry.shutdown)
         await asyncio.gather(
             *[client.aclose() for client in app.state.ollama_http_clients],
             app.state.codex_broker_http.aclose(),
@@ -172,6 +262,17 @@ app = FastAPI(
     version=settings.app_version,
     lifespan=lifespan,
 )
+app.include_router(job_router)
+app.include_router(job_tests_router)
+app.include_router(file_router)
+app.include_router(audio_router)
+app.include_router(speech_router)
+app.include_router(image_router)
+app.include_router(team_router)
+app.include_router(citation_router)
+app.include_router(job_profile_router)
+app.include_router(contract_router)
+app.include_router(api_groups_router)
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 
 # SICUREZZA DASHBOARD:
@@ -189,7 +290,9 @@ app.add_middleware(
 # AUTENTICAZIONE:
 # il middleware protegge l'intero namespace /v1 e risolve la Bearer key nel DB.
 # Negli endpoint arriva soltanto l'id interno della chiave, mai il segreto.
+app.add_middleware(RequestLimitsMiddleware)
 app.add_middleware(ApiKeyAuthMiddleware)
+app.add_middleware(AdministrativeAuthMiddleware)
 
 
 @app.middleware("http")
@@ -218,7 +321,10 @@ async def dashboard_security_headers(request: Request, call_next):
             "/api/gateway-apis",
             "/api/keys/",
             "/api/usage",
+            "/api/skills",
+            "/api/mcp/",
             "/api/build/",
+            "/api/workspaces",
         )
     ):
         response.headers["Content-Security-Policy"] = (
@@ -247,11 +353,21 @@ async def dashboard_security_headers(request: Request, call_next):
             "/api/gateway-apis",
             "/api/keys/",
             "/api/usage",
+            "/api/skills",
+            "/api/mcp/",
             "/api/build/",
+            "/api/workspaces",
         )
     ):
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+app.add_middleware(ClientDisconnectMiddleware)
+app.add_middleware(observability.TelemetryMiddleware)
+app.add_middleware(ContractHeadersMiddleware)
+app.add_middleware(SecurityBoundaryMiddleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=[host.strip() for host in settings.dashboard_allowed_hosts.split(",") if host.strip()])
 
 
 @app.exception_handler(GatewayError)
@@ -261,6 +377,7 @@ async def gateway_error_handler(
 ) -> JSONResponse:
     return JSONResponse(
         status_code=exc.status_code,
+        headers=exc.headers,
         content=openai_error_body(
             exc.message,
             error_type=exc.error_type,
@@ -276,7 +393,14 @@ async def validation_error_handler(
     exc: RequestValidationError,
 ) -> JSONResponse:
     if request.url.path.startswith(
-        ("/api/providers/", "/api/models/", "/api/gateway-apis", "/api/build/")
+        (
+            "/api/providers/",
+            "/api/models/",
+            "/api/gateway-apis",
+            "/api/skills",
+            "/api/mcp/",
+            "/api/build/",
+        )
     ):
         # Gli errori Pydantic includono normalmente l'input ricevuto. Nel
         # namespace OAuth non deve mai tornare al browser un codice monouso,
@@ -292,7 +416,7 @@ async def validation_error_handler(
     return JSONResponse(
         status_code=400,
         content=openai_error_body(
-            str(exc),
+            "Richiesta non valida: controlla formato, capacità e limiti.",
             error_type="invalid_request_error",
             code="validation_error",
         ),
@@ -302,6 +426,16 @@ async def validation_error_handler(
 @app.get("/healthz")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/admin/login", response_class=HTMLResponse, include_in_schema=False)
+async def admin_login(request: Request):
+    return templates.TemplateResponse(request=request, name="admin-login.html", context={}, headers={"Cache-Control": "no-store", "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; form-action 'self'", "Referrer-Policy": "no-referrer"})
+
+
+@app.get("/admin", response_class=HTMLResponse, include_in_schema=False)
+async def team_dashboard(request: Request):
+    return templates.TemplateResponse(request=request, name="team.html", context={}, headers={"Cache-Control": "no-store", "Content-Security-Policy": "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'; form-action 'self'", "Referrer-Policy": "no-referrer"})
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -319,7 +453,6 @@ async def dashboard(
             "providers": providers,
             "connected_count": connected_count,
             "total_providers": len(providers),
-            "gateway_port": request.url.port or 8000,
             "build_enabled": settings.build_enabled,
         },
     )
@@ -397,6 +530,65 @@ async def codex_provider_status(request: Request) -> JSONResponse:
     except ProviderBrokerError as exc:
         return _provider_error_response(exc)
     return JSONResponse(content=payload, headers={"Cache-Control": "no-store"})
+
+
+async def _latest_codex_cli_version() -> str | None:
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get("https://registry.npmjs.org/@openai%2fcodex/latest")
+            response.raise_for_status()
+            version = response.json().get("version")
+    except (httpx.HTTPError, ValueError, AttributeError):
+        return None
+    if not isinstance(version, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        return None
+    return version
+
+
+@app.get("/api/providers/codex/update", include_in_schema=False)
+async def codex_update_status(request: Request) -> JSONResponse:
+    try:
+        installed = (await CodexBrokerClient(request.app.state.codex_broker_http).status()).get("cli_version")
+    except ProviderBrokerError:
+        installed = None
+    latest = await _latest_codex_cli_version()
+    installed_match = re.match(r"^(\d+)\.(\d+)\.(\d+)", installed or "")
+    installed_core = tuple(map(int, installed_match.groups())) if installed_match else None
+    latest_core = tuple(map(int, latest.split("."))) if latest else None
+    update_available = bool(
+        installed_core and latest_core and
+        (latest_core > installed_core or (latest_core == installed_core and latest != installed))
+    )
+    return JSONResponse(content={"installed": installed, "latest": latest,
+        "update_available": update_available},
+        headers={"Cache-Control": "no-store"})
+
+
+@app.post("/api/providers/codex/update", include_in_schema=False,
+          dependencies=[Depends(require_dashboard_mutation)])
+async def start_codex_update(request: Request) -> JSONResponse:
+    version = await _latest_codex_cli_version()
+    if version is None:
+        return _build_error(503, "version_check_failed", "Versione Codex non verificabile dal registro npm.")
+    try:
+        response = await request.app.state.maintenance_http.post(
+            "/v1/codex/update", json={"version": version})
+        response.raise_for_status()
+        job = response.json()
+    except (httpx.HTTPError, ValueError):
+        return _build_error(503, "maintenance_runner_unavailable", "Il runner non ha avviato l’aggiornamento Codex.")
+    return JSONResponse(status_code=202, content=job, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/providers/codex/update/jobs/{job_id}", include_in_schema=False)
+async def codex_update_job(job_id: uuid.UUID, request: Request) -> JSONResponse:
+    try:
+        response = await request.app.state.maintenance_http.get(f"/v1/jobs/{job_id}")
+        response.raise_for_status()
+        job = response.json()
+    except (httpx.HTTPError, ValueError):
+        return _build_error(503, "maintenance_runner_unavailable", "Stato aggiornamento Codex non disponibile.")
+    return JSONResponse(content=job, headers={"Cache-Control": "no-store"})
 
 
 @app.post(
@@ -712,11 +904,248 @@ async def api_key_toggle(key_id: int) -> JSONResponse:
     )
 
 
+@app.get("/api/skills", include_in_schema=False)
+async def skill_list() -> JSONResponse:
+    records = await list_skills()
+    return JSONResponse(
+        content={"data": [record.as_dict() for record in records]},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post(
+    "/api/skills",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_mutation)],
+)
+async def skill_create(payload: SkillConfig) -> JSONResponse:
+    try:
+        record = await create_skill(
+            name=payload.name,
+            description=payload.description,
+            instructions=payload.instructions,
+            enabled=payload.enabled,
+        )
+    except ValueError as exc:
+        return _build_error(409, "skill_conflict", str(exc))
+    return JSONResponse(
+        status_code=201,
+        content=record.as_dict(),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.patch(
+    "/api/skills/{skill_id}",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_mutation)],
+)
+async def skill_update(skill_id: int, payload: SkillConfig) -> JSONResponse:
+    try:
+        record = await update_skill(
+            skill_id,
+            name=payload.name,
+            description=payload.description,
+            instructions=payload.instructions,
+            enabled=payload.enabled,
+        )
+    except ValueError as exc:
+        return _build_error(409, "skill_conflict", str(exc))
+    if record is None:
+        return _build_error(404, "skill_not_found", "Skill non trovata.")
+    return JSONResponse(
+        content=record.as_dict(),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.delete(
+    "/api/skills/{skill_id}",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_mutation)],
+)
+async def skill_delete(skill_id: int) -> JSONResponse:
+    if not await delete_skill(skill_id):
+        return _build_error(404, "skill_not_found", "Skill non trovata.")
+    return JSONResponse(
+        content={"status": "deleted"},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/api/mcp/servers", include_in_schema=False)
+async def mcp_server_list() -> JSONResponse:
+    records = await list_mcp_servers()
+    return JSONResponse(
+        content={"data": [record.as_dict() for record in records]},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post(
+    "/api/mcp/servers",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_mutation)],
+)
+async def mcp_server_create(payload: McpServerConfig) -> JSONResponse:
+    try:
+        url = normalize_mcp_url(payload.url)
+    except ValueError as exc:
+        return _build_error(400, "invalid_mcp_url", str(exc))
+    try:
+        if payload.auth_type == "bearer" and not payload.bearer_token:
+            return _build_error(
+                400,
+                "mcp_token_required",
+                "Inserisci il token Bearer del server MCP.",
+            )
+        ciphertext = (
+            ProviderVault().encrypt_json(
+                {"bearer_token": payload.bearer_token}
+            )
+            if payload.auth_type == "bearer"
+            else None
+        )
+        record = await create_mcp_server(
+            name=payload.name,
+            url=url,
+            auth_type=payload.auth_type,
+            auth_ciphertext=ciphertext,
+            enabled=payload.enabled,
+        )
+    except ProviderVaultError:
+        return _build_error(
+            503,
+            "mcp_vault_error",
+            "Il vault delle credenziali MCP non è disponibile.",
+        )
+    except ValueError as exc:
+        return _build_error(409, "mcp_server_conflict", str(exc))
+    if record.enabled:
+        record = await _refresh_mcp_server(record)
+    return JSONResponse(
+        status_code=201,
+        content=record.as_dict(),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.patch(
+    "/api/mcp/servers/{server_id}",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_mutation)],
+)
+async def mcp_server_update(
+    server_id: int,
+    payload: McpServerConfig,
+) -> JSONResponse:
+    existing = await get_mcp_server(server_id)
+    if existing is None:
+        return _build_error(
+            404,
+            "mcp_server_not_found",
+            "Server MCP non trovato.",
+        )
+    try:
+        url = normalize_mcp_url(payload.url)
+    except ValueError as exc:
+        return _build_error(400, "invalid_mcp_url", str(exc))
+    try:
+        if payload.auth_type == "bearer":
+            if payload.bearer_token:
+                ciphertext = ProviderVault().encrypt_json(
+                    {"bearer_token": payload.bearer_token}
+                )
+            elif existing.auth_type == "bearer" and existing.auth_ciphertext:
+                ciphertext = existing.auth_ciphertext
+            else:
+                return _build_error(
+                    400,
+                    "mcp_token_required",
+                    "Inserisci il token Bearer del server MCP.",
+                )
+        else:
+            ciphertext = None
+        record = await update_mcp_server(
+            server_id,
+            name=payload.name,
+            url=url,
+            auth_type=payload.auth_type,
+            auth_ciphertext=ciphertext,
+            enabled=payload.enabled,
+        )
+    except ProviderVaultError:
+        return _build_error(
+            503,
+            "mcp_vault_error",
+            "Il vault delle credenziali MCP non è disponibile.",
+        )
+    except ValueError as exc:
+        return _build_error(409, "mcp_server_conflict", str(exc))
+    if record is None:
+        return _build_error(
+            404,
+            "mcp_server_not_found",
+            "Server MCP non trovato.",
+        )
+    if record.enabled:
+        record = await _refresh_mcp_server(record)
+    return JSONResponse(
+        content=record.as_dict(),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post(
+    "/api/mcp/servers/{server_id}/refresh",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_mutation)],
+)
+async def mcp_server_refresh(server_id: int) -> JSONResponse:
+    record = await get_mcp_server(server_id)
+    if record is None:
+        return _build_error(
+            404,
+            "mcp_server_not_found",
+            "Server MCP non trovato.",
+        )
+    if not record.enabled:
+        return _build_error(
+            409,
+            "mcp_server_disabled",
+            "Riattiva il server MCP prima di verificarlo.",
+        )
+    record = await _refresh_mcp_server(record)
+    return JSONResponse(
+        content=record.as_dict(),
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.delete(
+    "/api/mcp/servers/{server_id}",
+    include_in_schema=False,
+    dependencies=[Depends(require_dashboard_mutation)],
+)
+async def mcp_server_delete(server_id: int) -> JSONResponse:
+    if not await delete_mcp_server(server_id):
+        return _build_error(
+            404,
+            "mcp_server_not_found",
+            "Server MCP non trovato.",
+        )
+    return JSONResponse(
+        content={"status": "deleted"},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/api/gateway-apis", include_in_schema=False)
 async def gateway_api_list() -> JSONResponse:
     records = await list_gateway_apis()
+    budgets = await asyncio.gather(*(token_budget.status(record.api_key_id) for record in records))
     return JSONResponse(
-        content={"data": [record.as_dict() for record in records]},
+        content={"data": [{**record.as_dict(), "token_usage": budget} for record, budget in zip(records, budgets, strict=True)]},
         headers={"Cache-Control": "no-store"},
     )
 
@@ -784,6 +1213,9 @@ async def gateway_api_create(
             provider=payload.provider,
             model=payload.model,
             reasoning_effort=payload.reasoning_effort,
+            skill_ids=payload.skill_ids,
+            mcp_tools=payload.flattened_mcp_tools,
+            limits=payload.limits.model_dump() if payload.limits is not None else None,
         )
     except ValueError as exc:
         return JSONResponse(
@@ -818,6 +1250,7 @@ async def gateway_api_update(
             },
             headers={"Cache-Control": "no-store"},
         )
+    await token_budget.expire_reservations()
     routing_changed = (
         existing.provider != payload.provider
         or existing.model != payload.model
@@ -834,6 +1267,9 @@ async def gateway_api_update(
             provider=payload.provider,
             model=payload.model,
             reasoning_effort=payload.reasoning_effort,
+            skill_ids=payload.skill_ids,
+            mcp_tools=payload.flattened_mcp_tools,
+            limits=payload.limits.model_dump() if payload.limits is not None else None,
         )
     except ValueError as exc:
         return JSONResponse(
@@ -1801,6 +2237,12 @@ async def models(request: Request) -> dict[str, object]:
     return {"object": "list", "data": public_models()}
 
 
+@app.get("/v1/usage")
+async def key_usage(request: Request):
+    owner = int(request.state.api_key_id)
+    return {"limits": (await token_budget.policy(owner)).model_dump(), "usage": await token_budget.status(owner), "technical_limits": {"ollama_context_tokens": settings.ollama_context_tokens}}
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(
     payload: ChatCompletionRequest,
@@ -1809,13 +2251,22 @@ async def chat_completions(
     started = time.perf_counter()
     request_id = f"chatcmpl-{uuid.uuid4().hex}"
     api_key_id = int(request.state.api_key_id)
+    request.state.deployment_trace = deployments.start_trace()
     binding = await get_gateway_api_for_key(api_key_id)
+    payload = await await_connected(request, resolve_chat_files(request, payload))
+    capability_context = (
+        await load_capability_context(binding.id)
+        if binding is not None
+        else CapabilityContext((), ())
+    )
+    effective_payload = apply_capability_context(payload, capability_context)
+    injected_capability = effective_payload.messages[0] if effective_payload is not payload else None
 
     # CONTEGGIO TOKEN IN INGRESSO:
-    # tiktoken conta una rappresentazione JSON canonica dei messaggi. È una
-    # metrica coerente per il billing interno, anche se il tokenizer Ollama può
-    # produrre un valore diverso.
-    prompt_tokens = count_message_tokens(payload.messages)
+    # Include anche le Skill amministrative e il catalogo dei tool MCP
+    # effettivamente inviati al provider. Le iterazioni MCP successive vengono
+    # sommate da `complete_with_mcp`.
+    prompt_tokens = count_request_tokens(effective_payload)
 
     # ROUTING DINAMICO:
     # `model` è un alias pubblico. La registry lo traduce in provider e modello
@@ -1836,7 +2287,7 @@ async def chat_completions(
             request_id=request_id,
             api_key_id=api_key_id,
             route=ModelRoute(payload.model, "unresolved", "unresolved"),
-            prompt_tokens=prompt_tokens,
+            prompt_tokens=0,
             completion_tokens=0,
             status_code=exc.status_code,
             started=started,
@@ -1844,10 +2295,80 @@ async def chat_completions(
         )
         raise
 
+    if payload.has_client_tools and route.provider not in {"codex", "openai_compatible"}:
+        raise GatewayError(400, "Gli strumenti del client non sono disponibili per questo provider.", code="client_tools_not_supported")
+    if payload.has_client_tools and capability_context.has_mcp_tools:
+        raise GatewayError(400, "Gli strumenti del client e quelli MCP gestiti non possono essere eseguiti nella stessa richiesta.", code="tool_mode_conflict")
+    if payload.has_client_tools and payload.has_images and route.provider == "codex":
+        raise GatewayError(400, "Il percorso strumenti Codex non supporta ancora immagini nella stessa richiesta.", code="client_tools_images_not_supported")
+    session = InferenceLimits(api_key_id, await token_budget.policy(api_key_id), request_id, lambda current: _complete_without_tools(request, route, current), physical_context_tokens=settings.ollama_context_tokens if route.provider == "ollama" else None, telemetry=request.app.state.telemetry, provider_name=route.provider, resolved_model=route.resolved_model)
+    request.state.limit_session = session
+    try:
+        effective_payload = await await_connected(request, session.prepare(effective_payload))
+        if payload.stream and not payload.has_client_tools:
+            effective_payload = await session.pre_reserve(effective_payload)
+        request.state.effective_messages = [message for message in effective_payload.messages if message is not injected_capability]
+    except GatewayError as exc:
+        await _record_usage_safely(request_id=request_id, api_key_id=api_key_id, route=route, prompt_tokens=session.prompt_tokens, completion_tokens=session.completion_tokens, status_code=exc.status_code, started=started, error_code=exc.code)
+        raise
+
+    if payload.has_client_tools:
+        if route.provider not in {"codex", "openai_compatible"}:
+            raise GatewayError(400, "Gli strumenti del client non sono disponibili per questo provider.", code="client_tools_not_supported")
+        if capability_context.has_mcp_tools:
+            raise GatewayError(400, "Gli strumenti del client e quelli MCP gestiti non possono essere eseguiti nella stessa richiesta.", code="tool_mode_conflict")
+        try:
+            if route.provider == "codex":
+                async def operation(current):
+                    return await _broker_client_for_provider(request, "codex").complete_with_tools(current, model=route.resolved_model, reasoning_effort=route.reasoning_effort)
+            else:
+                async def operation(current):
+                    return await OpenAICompatibleProvider().complete_with_tools(current, route.resolved_model)
+            tool_result = await await_connected(request, session.tools(effective_payload, operation))
+        except (ProviderBrokerError, GatewayError) as exc:
+            await _record_usage_safely(
+                request_id=request_id, api_key_id=api_key_id, route=route,
+                prompt_tokens=session.prompt_tokens, completion_tokens=session.completion_tokens,
+                status_code=exc.status_code, started=started, error_code=exc.code,
+            )
+            if isinstance(exc, GatewayError):
+                raise
+            raise GatewayError(exc.status_code, str(exc), error_type="provider_error", code=exc.code) from exc
+        content = tool_result.get("content")
+        calls = tool_result.get("tool_calls") or []
+        finish_reason = "tool_calls" if calls else ("length" if session.output_truncated else "stop")
+        prompt_tokens, completion_tokens = session.prompt_tokens, session.completion_tokens
+        await _record_usage_safely(
+            request_id=request_id, api_key_id=api_key_id, route=route,
+            prompt_tokens=prompt_tokens, completion_tokens=completion_tokens,
+            status_code=200, started=started,
+        )
+        response_model = binding.slug if binding is not None else payload.model
+        if payload.stream:
+            async def tool_events():
+                created = int(time.time())
+                yield _sse(_stream_chunk(request_id, created, response_model, {"role": "assistant", "content": ""}))
+                if content:
+                    yield _sse(_stream_chunk(request_id, created, response_model, {"content": content}))
+                for index, call in enumerate(calls):
+                    yield _sse(_stream_chunk(request_id, created, response_model, {"tool_calls": [{"index": index, **call}]}))
+                yield _sse(_stream_chunk(request_id, created, response_model, {}, finish_reason=finish_reason))
+                if payload.stream_options and payload.stream_options.include_usage:
+                    yield _sse({"id": request_id, "object": "chat.completion.chunk", "created": created, "model": response_model, "choices": [], "usage": _usage(prompt_tokens, completion_tokens)})
+                yield "data: [DONE]\n\n"
+            return StreamingResponse(tool_events(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "X-Request-ID": request_id, **await session.headers()})
+        message = {"role": "assistant", "content": content, "refusal": None}
+        if calls:
+            message["tool_calls"] = calls
+        return JSONResponse(
+            headers={"X-Request-ID": request_id, **await session.headers()},
+            content={"id": request_id, "object": "chat.completion", "created": int(time.time()), "model": response_model, "choices": [{"index": 0, "message": message, "logprobs": None, "finish_reason": finish_reason}], "usage": _usage(prompt_tokens, completion_tokens)},
+        )
+
     if payload.stream:
         return StreamingResponse(
             _stream_completion(
-                payload=payload,
+                payload=effective_payload,
                 request=request,
                 route=route,
                 request_id=request_id,
@@ -1855,25 +2376,48 @@ async def chat_completions(
                 prompt_tokens=prompt_tokens,
                 started=started,
                 response_model=binding.slug if binding is not None else payload.model,
+                capability_context=capability_context,
+                gateway_api_id=binding.id if binding is not None else None,
             ),
             media_type="text/event-stream",
+            background=BackgroundTask(session.release_unstarted),
             headers={
                 "Cache-Control": "no-cache",
                 "X-Accel-Buffering": "no",
                 "X-Request-ID": request_id,
+                **await session.headers(),
             },
         )
 
     response_model = binding.slug if binding is not None else payload.model
     try:
-        content = await _provider_complete(payload, request, route)
+        if binding is not None:
+            capability_result = await await_connected(request, complete_with_mcp(
+                payload=effective_payload,
+                context=capability_context,
+                complete=lambda current: _provider_complete(
+                    current,
+                    request,
+                    route,
+                ),
+                request_id=request_id,
+                gateway_api_id=binding.id,
+            ))
+            content = capability_result.content
+            prompt_tokens = capability_result.prompt_tokens
+        else:
+            content = await await_connected(request, _provider_complete(
+                effective_payload,
+                request,
+                route,
+            ))
     except GatewayError as exc:
         await _record_usage_safely(
             request_id=request_id,
             api_key_id=api_key_id,
             route=route,
-            prompt_tokens=prompt_tokens,
-            completion_tokens=0,
+            prompt_tokens=session.prompt_tokens,
+            completion_tokens=session.completion_tokens,
             status_code=exc.status_code,
             started=started,
             error_code=exc.code,
@@ -1882,7 +2426,8 @@ async def chat_completions(
 
     # CONTEGGIO TOKEN IN USCITA E PERSISTENZA:
     # il log viene associato all'id della API key autenticata dal middleware.
-    completion_tokens = count_text_tokens(content)
+    prompt_tokens = session.prompt_tokens or prompt_tokens
+    completion_tokens = session.completion_tokens
     await _record_usage_safely(
         request_id=request_id,
         api_key_id=api_key_id,
@@ -1894,7 +2439,7 @@ async def chat_completions(
     )
 
     return JSONResponse(
-        headers={"X-Request-ID": request_id},
+        headers={"X-Request-ID": request_id, **await session.headers()},
         content={
             "id": request_id,
             "object": "chat.completion",
@@ -1909,11 +2454,132 @@ async def chat_completions(
                         "refusal": None,
                     },
                     "logprobs": None,
-                    "finish_reason": "stop",
+                    "finish_reason": "length" if session.output_truncated else "stop",
                 }
             ],
             "usage": _usage(prompt_tokens, completion_tokens),
         },
+    )
+
+
+def _limit_headers(response: Response) -> dict[str, str]:
+    return {key: value for key, value in response.headers.items() if key.lower().startswith("x-omniproxy-")}
+
+
+@app.post("/v1/responses")
+async def create_response(payload: ResponsesRequest, request: Request):
+    api_key_id = int(request.state.api_key_id)
+    history: list[dict[str, object]] = []
+    if payload.previous_response_id is not None:
+        stored = await get_stored_response(payload.previous_response_id, api_key_id)
+        if stored is None:
+            raise GatewayError(404, "Risposta precedente non trovata.", code="response_not_found")
+        prior_model, prior_input, prior_response = stored
+        if prior_model != payload.model:
+            raise GatewayError(400, "Il modello della conversazione non coincide.", code="response_model_mismatch")
+        history = [*prior_input, *prior_response["output"]]
+    current_input = input_items(payload)
+    full_input = [*history, *current_input]
+    if len(full_input) > 256 or len(json.dumps(full_input)) > 2_000_000:
+        raise GatewayError(400, "Cronologia Responses troppo grande.", code="response_history_too_large")
+    effective_payload = payload.model_copy(
+        update={"input": full_input, "instructions": None, "previous_response_id": None}
+    )
+    chat_response = await chat_completions(to_chat_request(effective_payload), request)
+    stored_input = from_chat_input(request.state.effective_messages)
+    response_id = f"resp_{uuid.uuid4().hex}"
+    if payload.stream:
+        async def response_events():
+            async for event in stream_chat_response(
+                chat_response, response_id, payload.model, store=payload.store,
+                previous_response_id=payload.previous_response_id,
+            ):
+                if payload.store and event.startswith(("event: response.completed\n", "event: response.incomplete\n")):
+                    completed = json.loads(event.split("data: ", 1)[1])["response"]
+                    await save_stored_response(
+                        response_id, api_key_id, payload.model, stored_input, completed
+                    )
+                yield event
+
+        return StreamingResponse(
+            response_events(),
+            media_type="text/event-stream",
+            background=chat_response.background,
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "X-Request-ID": response_id,
+                **_limit_headers(chat_response),
+            },
+        )
+    chat_body = json.loads(chat_response.body)
+    response_body = from_chat_response(chat_body, response_id)
+    response_body["store"] = payload.store
+    response_body["previous_response_id"] = payload.previous_response_id
+    if payload.store:
+        await save_stored_response(
+            response_id, api_key_id, payload.model, stored_input, response_body
+        )
+    return JSONResponse(
+        content=response_body,
+        headers={"X-Request-ID": response_id, **_limit_headers(chat_response)},
+    )
+
+
+@app.get("/v1/responses/{response_id}")
+async def retrieve_response(response_id: str, request: Request):
+    stored = await get_stored_response(response_id, int(request.state.api_key_id))
+    if stored is None:
+        raise GatewayError(404, "Risposta non trovata.", code="response_not_found")
+    return stored[2]
+
+
+@app.delete("/v1/responses/{response_id}")
+async def delete_response(response_id: str, request: Request):
+    deleted = await delete_stored_response(response_id, int(request.state.api_key_id))
+    if not deleted:
+        raise GatewayError(404, "Risposta non trovata.", code="response_not_found")
+    return {"id": response_id, "object": "response.deleted", "deleted": True}
+
+
+@app.post("/v1/messages")
+async def create_native_message(payload: AnthropicRequest, request: Request):
+    chat_response = await chat_completions(anthropic_to_chat_request(payload), request)
+    message_id = f"msg_{uuid.uuid4().hex}"
+    if payload.stream:
+        return StreamingResponse(
+            anthropic_stream_chat_response(chat_response, message_id, payload.model),
+            media_type="text/event-stream",
+            background=chat_response.background,
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "X-Request-ID": message_id, **_limit_headers(chat_response)},
+        )
+    return JSONResponse(
+        content=anthropic_from_chat_response(json.loads(chat_response.body), message_id),
+        headers={"X-Request-ID": message_id, **_limit_headers(chat_response)},
+    )
+
+
+@app.post("/v1beta/models/{model}:generateContent")
+@app.post("/v1/models/{model}:generateContent")
+async def create_gemini_content(model: str, payload: GeminiRequest, request: Request):
+    chat_response = await chat_completions(gemini_to_chat_request(payload, model, stream=False), request)
+    response_id = f"gem_{uuid.uuid4().hex}"
+    return JSONResponse(
+        content=gemini_from_chat_response(json.loads(chat_response.body), response_id),
+        headers={"X-Request-ID": response_id, **_limit_headers(chat_response)},
+    )
+
+
+@app.post("/v1beta/models/{model}:streamGenerateContent")
+@app.post("/v1/models/{model}:streamGenerateContent")
+async def stream_gemini_content(model: str, payload: GeminiRequest, request: Request):
+    chat_response = await chat_completions(gemini_to_chat_request(payload, model, stream=True), request)
+    response_id = f"gem_{uuid.uuid4().hex}"
+    return StreamingResponse(
+        gemini_stream_chat_response(chat_response, response_id, model),
+        media_type="text/event-stream",
+        background=chat_response.background,
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "X-Request-ID": response_id, **_limit_headers(chat_response)},
     )
 
 
@@ -1922,25 +2588,65 @@ async def _provider_complete(
     request: Request,
     route: ModelRoute,
 ) -> str:
+    provider = await _provider_for_route(request, route)
+    session = getattr(request.state, "limit_session", None)
+    if session is not None:
+        return await session.complete(payload, lambda current: provider.complete(current, route.resolved_model))
+    return await provider.complete(payload, route.resolved_model)
+
+
+async def _provider_for_route(request: Request, route: ModelRoute) -> TextProvider:
     if route.provider == "ollama":
         client = await _require_ollama_client(request.app)
-        return await OllamaProvider(
+        return OllamaProvider(
             client,
             think=_ollama_think_for_route(route),
-        ).complete(
-            payload,
-            route.resolved_model,
         )
     if route.provider in {"codex", "gemini", "claude"}:
-        provider = CliBrokerProvider(
+        return CliBrokerProvider(
             _broker_client_for_provider(request, route.provider),
             route,
         )
-        return await provider.complete(payload, route.resolved_model)
-    return await ExternalReasoningMockProvider().complete(
-        payload,
-        route.resolved_model,
-    )
+    if route.provider == "openai_compatible":
+        return OpenAICompatibleProvider()
+    return ExternalReasoningMockProvider()
+
+
+async def _job_complete(app_instance: FastAPI, profile, payload: ChatCompletionRequest) -> str:
+    request = Request({"type": "http", "app": app_instance, "headers": [], "state": {}})
+    route = ModelRoute(profile.slug, profile.provider, profile.model, profile.reasoning_effort)
+    request_id = f"jobcall-{uuid.uuid4().hex}"
+    started = time.perf_counter()
+    session = InferenceLimits(profile.api_key_id, await token_budget.policy(profile.api_key_id), request_id, lambda current: _complete_without_tools(request, route, current), physical_context_tokens=settings.ollama_context_tokens if route.provider == "ollama" else None, telemetry=app_instance.state.telemetry, provider_name=route.provider, resolved_model=route.resolved_model)
+    telemetry_token = observability.CURRENT.set(app_instance.state.telemetry)
+    status, code = 200, None
+    try:
+        return await session.complete(payload, lambda current: _complete_without_tools(request, route, current))
+    except asyncio.CancelledError:
+        status, code = 499, "job_cancelled"
+        raise
+    except (GatewayError, ProviderBrokerError) as exc:
+        status, code = exc.status_code, exc.code
+        raise
+    finally:
+        try:
+            await asyncio.shield(_record_usage_safely(request_id=request_id, api_key_id=profile.api_key_id, route=route, prompt_tokens=session.prompt_tokens, completion_tokens=session.completion_tokens, status_code=status, started=started, error_code=code))
+        finally:
+            observability.CURRENT.reset(telemetry_token)
+
+
+async def _complete_without_tools(request: Request, route: ModelRoute, payload: ChatCompletionRequest) -> str:
+    if route.provider in {"codex", "openai_compatible"}:
+        no_tools = payload.model_copy(update={"tools": [], "tool_choice": "none", "parallel_tool_calls": False})
+        if route.provider == "codex":
+            result = await _broker_client_for_provider(request, "codex").complete_with_tools(no_tools, model=route.resolved_model, reasoning_effort=route.reasoning_effort)
+        else:
+            result = await OpenAICompatibleProvider().complete_with_tools(no_tools, route.resolved_model)
+        if result.get("tool_calls") or not isinstance(result.get("content"), str):
+            raise GatewayError(502, "Il provider ha richiesto strumenti non autorizzati.", code="job_tool_not_allowed")
+        return result["content"]
+    provider = await _provider_for_route(request, route)
+    return await provider.complete(payload, route.resolved_model)
 
 
 async def _provider_stream(
@@ -1948,20 +2654,10 @@ async def _provider_stream(
     request: Request,
     route: ModelRoute,
 ) -> AsyncIterator[str]:
-    if route.provider == "ollama":
-        provider = OllamaProvider(
-            await _require_ollama_client(request.app),
-            think=_ollama_think_for_route(route),
-        )
-    elif route.provider in {"codex", "gemini", "claude"}:
-        provider = CliBrokerProvider(
-            _broker_client_for_provider(request, route.provider),
-            route,
-        )
-    else:
-        provider = ExternalReasoningMockProvider()
-
-    async for chunk in provider.stream(payload, route.resolved_model):
+    provider = await _provider_for_route(request, route)
+    session = getattr(request.state, "limit_session", None)
+    stream = session.stream(payload, lambda current: provider.stream(current, route.resolved_model)) if session is not None else provider.stream(payload, route.resolved_model)
+    async for chunk in stream:
         yield chunk
 
 
@@ -1975,12 +2671,15 @@ async def _stream_completion(
     prompt_tokens: int,
     started: float,
     response_model: str,
+    capability_context: CapabilityContext,
+    gateway_api_id: int | None,
 ) -> AsyncIterator[str]:
     created = int(time.time())
     chunks: list[str] = []
     status_code = 200
     error_code: str | None = None
     cancelled = False
+    session = getattr(request.state, "limit_session", None)
 
     yield _sse(
         _stream_chunk(
@@ -1992,16 +2691,42 @@ async def _stream_completion(
     )
 
     try:
-        async for content in _provider_stream(payload, request, route):
-            chunks.append(content)
-            yield _sse(
-                _stream_chunk(
-                    request_id,
-                    created,
-                    response_model,
-                    {"content": content},
-                )
+        if capability_context.has_mcp_tools and gateway_api_id is not None:
+            result = await complete_with_mcp(
+                payload=payload,
+                context=capability_context,
+                complete=lambda current: _provider_complete(
+                    current,
+                    request,
+                    route,
+                ),
+                request_id=request_id,
+                gateway_api_id=gateway_api_id,
             )
+            prompt_tokens = result.prompt_tokens
+            words = result.content.split(" ")
+            for index, word in enumerate(words):
+                content = f" {word}" if index else word
+                chunks.append(content)
+                yield _sse(
+                    _stream_chunk(
+                        request_id,
+                        created,
+                        response_model,
+                        {"content": content},
+                    )
+                )
+        else:
+            async for content in _provider_stream(payload, request, route):
+                chunks.append(content)
+                yield _sse(
+                    _stream_chunk(
+                        request_id,
+                        created,
+                        response_model,
+                        {"content": content},
+                    )
+                )
     except asyncio.CancelledError:
         cancelled = True
         status_code = 499
@@ -2025,11 +2750,14 @@ async def _stream_completion(
                 created,
                 response_model,
                 {},
-                finish_reason="stop",
+                finish_reason="length" if session is not None and session.output_truncated else "stop",
             )
         )
     finally:
-        completion_tokens = count_text_tokens("".join(chunks))
+        if session is not None:
+            prompt_tokens, completion_tokens = session.prompt_tokens, session.completion_tokens
+        else:
+            completion_tokens = count_text_tokens("".join(chunks))
         record_task = _record_usage_safely(
             request_id=request_id,
             api_key_id=api_key_id,
@@ -2050,7 +2778,7 @@ async def _stream_completion(
                 "created": created,
                 "model": response_model,
                 "choices": [],
-                "usage": _usage(prompt_tokens, count_text_tokens("".join(chunks))),
+                "usage": _usage(prompt_tokens, completion_tokens),
             }
         )
     if not cancelled:
@@ -2065,7 +2793,7 @@ def _stream_chunk(
     *,
     finish_reason: str | None = None,
 ) -> dict[str, object]:
-    return {
+    chunk = {
         "id": request_id,
         "object": "chat.completion.chunk",
         "created": created,
@@ -2079,6 +2807,9 @@ def _stream_chunk(
             }
         ],
     }
+    if finish_reason is not None and deployments.selection():
+        chunk["omniproxy"] = deployments.selection()
+    return chunk
 
 
 def _sse(payload: dict[str, object]) -> str:
@@ -2116,8 +2847,58 @@ def _invalid_auth_code_response(code: str) -> JSONResponse | None:
     )
 
 
+async def _refresh_mcp_server(
+    server: McpServerRecord,
+) -> McpServerRecord:
+    try:
+        discovery = await McpGatewayClient().discover(server)
+    except (ValueError, McpClientError) as exc:
+        message = str(exc)
+        refreshed = await save_mcp_server_discovery(
+            server.id,
+            status="error",
+            status_message=message,
+            protocol_version=None,
+            server_info=None,
+            tools=[],
+        )
+    except TimeoutError:
+        refreshed = await save_mcp_server_discovery(
+            server.id,
+            status="error",
+            status_message="Il server MCP non ha risposto entro il timeout.",
+            protocol_version=None,
+            server_info=None,
+            tools=[],
+        )
+    except Exception as exc:  # noqa: BLE001 - normalizza errori SDK MCP
+        logger.warning(
+            "MCP discovery failed for server id=%s: %s",
+            server.id,
+            type(exc).__name__,
+        )
+        refreshed = await save_mcp_server_discovery(
+            server.id,
+            status="error",
+            status_message="Il server non ha restituito una risposta MCP valida.",
+            protocol_version=None,
+            server_info=None,
+            tools=[],
+        )
+    else:
+        refreshed = await save_mcp_server_discovery(
+            server.id,
+            status="connected",
+            status_message=None,
+            protocol_version=discovery.protocol_version,
+            server_info=discovery.server_info,
+            tools=discovery.tools,
+        )
+    return refreshed or server
+
+
 async def _model_catalog(app_instance: FastAPI) -> list[dict[str, object]]:
-    ollama_result, codex_result, gemini_result, claude_result = (
+    ollama_result, codex_result, gemini_result, claude_result, upstream_result = (
         await asyncio.gather(
             _ollama_catalog(app_instance),
             _broker_catalog(
@@ -2134,9 +2915,10 @@ async def _model_catalog(app_instance: FastAPI) -> list[dict[str, object]]:
                 "claude",
                 ClaudeBrokerClient(app_instance.state.claude_broker_http),
             ),
+            OpenAICompatibleProvider().catalog(),
         )
     )
-    return [ollama_result, codex_result, gemini_result, claude_result]
+    return [ollama_result, codex_result, gemini_result, claude_result, upstream_result]
 
 
 async def _ollama_catalog(app_instance: FastAPI) -> dict[str, object]:
@@ -2155,6 +2937,15 @@ async def _ollama_catalog(app_instance: FastAPI) -> dict[str, object]:
     if not isinstance(raw_models, list):
         raw_models = []
 
+    loaded_contexts = {}
+    try:
+        running = await client.get("/api/ps", timeout=2)
+        running.raise_for_status()
+        for item in running.json().get("models", []):
+            if isinstance(item, dict) and isinstance(item.get("context_length"), int):
+                loaded_contexts[item.get("name") or item.get("model")] = item["context_length"]
+    except (httpx.HTTPError, ValueError, AttributeError, TypeError):
+        pass
     semaphore = asyncio.Semaphore(8)
 
     async def describe_model(
@@ -2173,6 +2964,7 @@ async def _ollama_catalog(app_instance: FastAPI) -> dict[str, object]:
             else None
         )
         capabilities: list[str] = []
+        reported_context = None
         try:
             async with semaphore:
                 response = await client.post(
@@ -2189,6 +2981,11 @@ async def _ollama_catalog(app_instance: FastAPI) -> dict[str, object]:
                         for value in raw_capabilities
                         if isinstance(value, str)
                     ]
+                info = show.get("model_info") or {}
+                if isinstance(info, dict):
+                    value = info.get(str(info.get("general.architecture")) + ".context_length")
+                    if isinstance(value, int) and not isinstance(value, bool) and value >= 512:
+                        reported_context = value
         except (httpx.HTTPError, ValueError):
             capabilities = []
         if capabilities and "completion" not in capabilities:
@@ -2214,6 +3011,10 @@ async def _ollama_catalog(app_instance: FastAPI) -> dict[str, object]:
                 if settings.ollama_think and "on" in efforts
                 else "off"
             ),
+            "reported_capabilities": capabilities,
+            "capability_source": "ollama_api_show",
+            "gateway_capabilities": {"text": "completion" in capabilities if capabilities else None, "images": "vision" in capabilities if capabilities else None, "client_tools": False, "structured_output": False},
+            "context": {"reported_tokens": reported_context, "configured_tokens": settings.ollama_context_tokens, "loaded_tokens": loaded_contexts.get(model_id), "counting": "gateway_estimate"},
         }
 
     described = await asyncio.gather(
@@ -2956,7 +3757,7 @@ def _find_unique_patch_core(
         return None
     exact = [
         index
-        for index in range(0, len(lines) - len(segment) + 1)
+        for index in range(len(lines) - len(segment) + 1)
         if lines[index:index + len(segment)] == segment
     ]
     if len(exact) == 1:
@@ -2966,7 +3767,7 @@ def _find_unique_patch_core(
     normalized = [line.strip() for line in segment]
     whitespace_matches = [
         index
-        for index in range(0, len(lines) - len(segment) + 1)
+        for index in range(len(lines) - len(segment) + 1)
         if [
             line.strip()
             for line in lines[index:index + len(segment)]
@@ -3795,9 +4596,10 @@ async def _discover_ollama(
         client: httpx.AsyncClient,
     ) -> tuple[httpx.AsyncClient, dict[str, object]] | None:
         try:
+            await enforce_upstream_transport(client.base_url)
             response = await client.get("/api/tags", timeout=timeout)
             payload = response.json()
-        except (httpx.HTTPError, ValueError):
+        except (httpx.HTTPError, ValueError, GatewayError):
             return None
         if not response.is_success or not isinstance(payload, dict):
             return None

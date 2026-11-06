@@ -1,0 +1,38 @@
+# Example only: adapt image, UID/GID, project directory and network to your deployment.
+# Uses the existing Telegram image, without polling or mounting Multica/HA secrets.
+services:
+  omniproxy-security-reminders:
+    image: ${REMINDER_IMAGE:-python:3.12-slim}
+    command: [python, /app/https_reminders.py, --config, /run/reminders/config.json]
+    user: "1001:1001"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 64m
+    pids_limit: 32
+    volumes:
+      - ./.local/omniproxy-reminders/https_reminders.py:/app/https_reminders.py:ro
+      - ./.local/omniproxy-reminders/config.json:/run/reminders/config.json:ro
+      - ./.local/omniproxy-reminders/omniproxy-root.crt:/run/reminders/root.crt:ro
+      - ./.local/telegram/config.json:/run/secrets/telegram-config.json:ro
+      - ./.local/omniproxy-reminders/state:/state
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    networks: [default]
+    healthcheck:
+      test: [CMD, python, -c, "import time,pathlib; assert time.time()-float(pathlib.Path('/state/heartbeat').read_text())<7200"]
+      interval: 1m
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "2m"
+        max-file: "2"
+networks:
+  default:
+    external: true
+    name: ${REMINDER_NETWORK:-casa-agenti_default}

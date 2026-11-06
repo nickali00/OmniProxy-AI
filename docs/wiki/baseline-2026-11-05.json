@@ -1,0 +1,38 @@
+{
+  "scope": "source_asgi_isolated_database",
+  "text_model": "qwen3.5:2b",
+  "tests": {
+    "text": {
+      "passed": true,
+      "latency_ms": [
+        130.95,
+        132.58,
+        132.61
+      ],
+      "median_ms": 132.58
+    },
+    "sse": {
+      "passed": true,
+      "latency_ms": 58.04
+    },
+    "concurrency_3": {
+      "passed": true,
+      "latency_ms": [
+        165.56,
+        150.26,
+        129.4
+      ]
+    },
+    "ollama_vision": {
+      "passed": true,
+      "model": "qwen3-vl:latest",
+      "latency_ms": 10361.33
+    },
+    "codex_vision": {
+      "passed": true,
+      "model": "gpt-5.6-sol",
+      "latency_ms": 5070.06
+    }
+  },
+  "gateway_process_peak_rss_kib": 459616
+}

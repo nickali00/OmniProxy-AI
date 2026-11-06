@@ -1,0 +1,21 @@
+{
+  "scope": "deployed_login_layout_and_existing_credential_check",
+  "page_and_external_stylesheet_served_over_verified_https": true,
+  "CSP_without_inline_style_exceptions": true,
+  "existing_dashboard_token_login": true,
+  "existing_application_key_models": true,
+  "keys_before_https": 54,
+  "same_credential_status_limits": 54,
+  "profiles_before_https": 15,
+  "same_alias_key_and_routing": 15,
+  "targeted_tests": 28,
+  "test_notes": [
+    "one aiosqlite deprecation warning in test teardown"
+  ],
+  "browser_visual_verification": false,
+  "client_environment_inventory": "No matching legacy endpoint found in running container environment variables; excludes application databases and file configs",
+  "legacy_http_API_status": 426,
+  "api_base_url": "https://192.0.2.10/v1",
+  "gateway_image": "sha256:90cd641a7fc3523b77b2c652e392a69e1384d3faea6c52fb448f055b7408e1ad",
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

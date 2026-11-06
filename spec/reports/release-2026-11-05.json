@@ -1,0 +1,16 @@
+{
+  "release": "1.0.0-rc.1",
+  "contract_version": "1",
+  "date": "2026-11-05",
+  "platform": "Linux",
+  "gateway_image": "sha256:b2877ce751d5b5d95b56358ced06fe5c9fe4098f17097806a8f26cc504daa104",
+  "python_tests": 250,
+  "node_tests": 14,
+  "all_services_healthy": true,
+  "sqlite_old_tables_hash_verified": 36,
+  "migration_passes": 2,
+  "independent_adoption_measured": false,
+  "stable_release": false,
+  "remote_publication_performed": false,
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

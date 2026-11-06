@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-06",
+  "gateway_image": "sha256:4829250811b648e2d823564ef1ce33c99134c00505011cff33197478ea0fc51e",
+  "gateway_healthy": true,
+  "live_urls": {
+    "gateway-status-url": "https://192.0.2.10/v1",
+    "gateway-base-url": "https://192.0.2.10/v1"
+  },
+  "template_checks": [
+    "HTTPS default443",
+    "HTTPS9443",
+    "HTTP8181"
+  ],
+  "previous_dashboard_token_valid": true,
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

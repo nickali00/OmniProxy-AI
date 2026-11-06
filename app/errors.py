@@ -28,6 +28,7 @@ class GatewayError(Exception):
         error_type: str = "gateway_error",
         code: str | None = None,
         param: str | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
@@ -35,3 +36,4 @@ class GatewayError(Exception):
         self.error_type = error_type
         self.code = code
         self.param = param
+        self.headers = headers or {}

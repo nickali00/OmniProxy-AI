@@ -1,0 +1,79 @@
+{
+  "date": "2026-11-06",
+  "scope": "explicit_five_year_extension_of_existing_dashboard_operator_session_and_private_Telegram_reminders",
+  "gateway_release": "1.0.0-rc.3",
+  "gateway_image": "sha256:f775d8d830f7b4373014bc4f8fc9590cb49e103fd1a7d591f83c4900fb99b4b4",
+  "gateway_healthy": true,
+  "python_tests": 283,
+  "focused_tests": 37,
+  "years": "five_calendar_years_from_explicit_local_extension",
+  "existing_token_preserved": true,
+  "private_credential_file_unchanged": true,
+  "ordinary_session_issuance_hours": [
+    1,
+    168
+  ],
+  "new_public_route": false,
+  "rejects_extension_of": [
+    "revoked_session",
+    "expired_session",
+    "inactive_identity",
+    "non_operator_identity",
+    "mismatched_token"
+  ],
+  "revocation_tested_after_extension": true,
+  "extension_audited_transactionally": true,
+  "real_HTTPS_same_token_and_secure_cookie_verified": true,
+  "codex_and_antigravity_accounts_still_connected": true,
+  "https_boundary": {
+    "scope": "https_boundary",
+    "passed": true,
+    "tls_verified": true,
+    "accepted_protocols": [
+      "TLSv1.2",
+      "TLSv1.3"
+    ],
+    "rejected_protocols": [
+      "TLSv1",
+      "TLSv1_1"
+    ],
+    "unauthenticated_admin_denied": true,
+    "response_headers_verified": true,
+    "http_browser_redirect_and_api_refusal": true
+  },
+  "built_image_smoke": {
+    "scope": "built_image_ephemeral_database",
+    "non_root_read_only": true,
+    "image_pdf_video_parsers": true,
+    "speech_generation": true,
+    "input_output_limits": true,
+    "real_ollama": true,
+    "budget_accounted": true,
+    "citations": true,
+    "api_groups_keep_keys_valid": true,
+    "team_identity_profile_key_revocation": true,
+    "passed": true
+  },
+  "python_runtime_dependencies_identical_to_prior_audited_image": true,
+  "reminder": {
+    "private_telegram_update_confirmed": true,
+    "same_notice_not_resent_after_recreation": true,
+    "token_secret_not_in_reminder_configuration": true,
+    "service_running_healthy": true,
+    "interval_seconds": 3600,
+    "expiry_threshold_days": [
+      90,
+      30,
+      7,
+      1,
+      0
+    ]
+  },
+  "limitations": [
+    "reminder uses registered session ID and expiry metadata; update or remove when session extended, replaced or revoked",
+    "no dashboard secret sent to monitor; service does not authenticate, revoke or renew dashboard token",
+    "Telegram delivery depends on monitor host, Internet and authorized bot; confirmation is not proof of user reading",
+    "browser cookie retention is independent of server token validity"
+  ],
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

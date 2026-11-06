@@ -26,6 +26,7 @@ class ProviderBrokerClient:
     """Contratto HTTP comune per i sidecar provider autonomi."""
 
     provider_name = "Provider"
+    supports_images = False
 
     def __init__(self, client: httpx.AsyncClient) -> None:
         self._client = client
@@ -57,6 +58,13 @@ class ProviderBrokerClient:
         model: str,
         reasoning_effort: str,
     ) -> str:
+        if request.has_images and not self.supports_images:
+            raise ProviderBrokerError(
+                f"Il provider {self.provider_name} non supporta ancora "
+                "image_url tramite questo broker.",
+                status_code=400,
+                code="multimodal_not_supported",
+            )
         payload = await self._request(
             "POST",
             "/v1/chat",
@@ -66,7 +74,7 @@ class ProviderBrokerClient:
                 "messages": [
                     {
                         "role": message.role,
-                        "content": message.text_content(),
+                        "content": message.provider_content(),
                     }
                     for message in request.messages
                 ],
@@ -84,6 +92,43 @@ class ProviderBrokerClient:
                 code="invalid_provider_completion",
             )
         return content
+
+    async def complete_with_tools(
+        self,
+        request: ChatCompletionRequest,
+        *,
+        model: str,
+        reasoning_effort: str,
+    ) -> dict[str, object]:
+        if self.provider_name != "Codex":
+            raise ProviderBrokerError(
+                f"Il provider {self.provider_name} non supporta tool del client.",
+                status_code=400,
+                code="client_tools_not_supported",
+            )
+        payload = await self._request(
+            "POST",
+            "/v1/chat",
+            json={
+                "model": model,
+                "reasoning_effort": reasoning_effort,
+                "messages": [message.model_dump(exclude_none=True) for message in request.messages],
+                "tools": request.tools or [],
+                "tool_choice": request.tool_choice or "auto",
+                "parallel_tool_calls": request.parallel_tool_calls,
+                "max_output_tokens": request.output_token_limit,
+            },
+            timeout=settings.provider_completion_timeout_seconds,
+        )
+        content = payload.get("content")
+        calls = payload.get("tool_calls")
+        if not isinstance(content, (str, type(None))) or not isinstance(calls, (list, type(None))):
+            raise ProviderBrokerError(
+                "Il broker Codex ha restituito una risposta strumenti non valida.",
+                status_code=502,
+                code="invalid_provider_completion",
+            )
+        return payload
 
     async def submit_code(
         self,
@@ -195,6 +240,7 @@ class ClaudeBrokerClient(ProviderBrokerClient):
 
 class CodexBrokerClient(ProviderBrokerClient):
     provider_name = "Codex"
+    supports_images = True
     _allowed_hosts = {
         "auth.openai.com",
         "chatgpt.com",

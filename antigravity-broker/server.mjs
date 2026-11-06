@@ -3,6 +3,8 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
+import { parseAvailableModels } from "./models.mjs";
+import { headlessArguments, headlessInput, headlessResult, supportedVersion } from "./headless.mjs";
 import {
   parseChatRequest,
   readJsonBody,
@@ -85,6 +87,8 @@ async function ensureSafeSettings() {
     enableTelemetry: false,
     permissions: {
       deny: [
+        "read_file(*)",
+        "read_url(*)",
         "command(*)",
         "write_file(*)",
         "execute_url(*)",
@@ -120,6 +124,9 @@ async function quotaStatus() {
 }
 
 const settingsReady = ensureSafeSettings();
+const versionReady = runProcess(antigravityBinary, ["--version"], { input: "", timeoutMs: 10_000, maxOutputBytes: 1024, env: cliEnvironment(), cwd: "/workspace" })
+  .then((result) => result.code === 0 ? (result.stdout.match(/\b\d+\.\d+\.\d+\b/u)?.[0] || null) : null)
+  .catch(() => null);
 
 function cliEnvironment() {
   return {
@@ -133,13 +140,10 @@ function cliEnvironment() {
   };
 }
 
-function parseAvailableModels(output) {
-  const plain = stripTerminalOutput(output).toLowerCase();
-  return proprietaryModels.filter((model) => plain.includes(model.id));
-}
-
 async function modelStatus() {
   await settingsReady;
+  const version = await versionReady;
+  if (!supportedVersion(version)) return { installed: Boolean(version), connected: false, auth_method: "none", models: [], client_version: version, reason: "unsupported_cli_version" };
   try {
     const result = await runProcess(
       antigravityBinary,
@@ -155,12 +159,14 @@ async function modelStatus() {
     if (result.code !== 0) throw new Error("not_connected");
     const models = parseAvailableModels(
       `${result.stdout}\n${result.stderr}`,
+      proprietaryModels,
     );
     return {
       installed: true,
-      connected: true,
+      connected: models.length > 0,
       auth_method: "google_antigravity",
       client_mode: "official_headless_cli",
+      client_version: version,
       models,
     };
   } catch {
@@ -169,6 +175,7 @@ async function modelStatus() {
       connected: false,
       auth_method: "none",
       client_mode: "official_headless_cli",
+      client_version: version,
       models: [],
     };
   }
@@ -346,7 +353,7 @@ async function readAuthJsonBody(request) {
   return await readJsonBody(request, maxAuthBodyBytes);
 }
 
-async function completeChat(body) {
+async function completeChat(body, signal) {
   const status = await modelStatus();
   if (!status.connected) {
     return {
@@ -373,7 +380,7 @@ async function completeChat(body) {
     chat = parseChatRequest(
       body,
       new Set(models.map((model) => model.id)),
-      new Set(reasoningEfforts),
+      new Set(models.find((item) => item.id === body.model)?.reasoning_efforts || []),
     );
   } catch {
     return {
@@ -399,30 +406,22 @@ async function completeChat(body) {
     30,
     Math.ceil(executionTimeoutMs / 1000),
   );
-  const args = [
-    "--model",
-    chat.model,
-    "--effort",
-    chat.reasoning,
-    "--mode",
-    "plan",
-    "--sandbox",
-    "--print-timeout",
-    `${timeoutSeconds}s`,
-  ];
+  const args = headlessArguments(chat, timeoutSeconds);
 
   activeExecutions += 1;
   try {
     const result = await runProcess(antigravityBinary, args, {
       // Il contenuto resta su stdin: non compare nella command line del
       // processo e non viene scritto nei log del broker.
-      input: prompt,
+      input: headlessInput(prompt),
       cwd: "/workspace",
       env: cliEnvironment(),
       timeoutMs: executionTimeoutMs + 5_000,
       maxOutputBytes: 16 * 1024 * 1024,
+      signal,
     });
-    const content = stripTerminalOutput(result.stdout).trim();
+    let content = "";
+    try { content = headlessResult(result.stdout); } catch { /* sanitized below */ }
     if (result.code !== 0 || !content) {
       const diagnostic = stripTerminalOutput(result.stderr).toLowerCase();
       if (
@@ -446,7 +445,7 @@ async function completeChat(body) {
     };
   } catch {
     return {
-      statusCode: 502,
+      statusCode: signal?.aborted ? 499 : 502,
       body: {
         error: "antigravity_execution_failed",
         message: "Antigravity CLI non ha completato la richiesta.",
@@ -565,18 +564,30 @@ async function route(request, response) {
   }
 
   if (request.method === "POST" && url.pathname === "/v1/chat") {
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    const closed = () => { if (!response.writableEnded) abort(); };
+    request.once("aborted", abort);
+    response.once("close", closed);
     let body;
     try {
       body = await readJsonBody(request);
     } catch {
+      request.off("aborted", abort);
+      response.off("close", closed);
       jsonResponse(response, 400, {
         error: "invalid_chat_request",
         message: "Richiesta Gemini non valida.",
       });
       return;
     }
-    const result = await completeChat(body);
-    jsonResponse(response, result.statusCode, result.body);
+    try {
+      const result = await completeChat(body, controller.signal);
+      if (!response.destroyed) jsonResponse(response, result.statusCode, result.body);
+    } finally {
+      request.off("aborted", abort);
+      response.off("close", closed);
+    }
     return;
   }
 

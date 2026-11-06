@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Accesso OmniProxy</title>
+  <link rel="stylesheet" href="/static/dashboard.css?v=security-v1">
+  <link rel="stylesheet" href="/static/admin-login.css?v=login-v2">
+  <script defer src="/static/admin-login.js"></script>
+</head>
+<body class="login-page">
+  <main class="login-card" aria-labelledby="login-title">
+    <a class="login-brand" href="/admin/login">OmniProxy <span>AI</span></a>
+    <h1 id="login-title">Accedi alla dashboard</h1>
+    <p class="login-description">Inserisci il token personale fornito dall’operatore dell’istanza.</p>
+    <form id="admin-login" class="login-form">
+      <label for="admin-token">Token dashboard</label>
+      <input id="admin-token" type="password" autocomplete="off" spellcheck="false" aria-describedby="admin-token-help" required>
+      <p id="admin-token-help" class="login-help">Il token personale è diverso dalle chiavi API delle applicazioni.</p>
+      <button class="login-submit" type="submit">Accedi</button>
+    </form>
+    <p id="admin-login-status" class="login-status" role="status" aria-live="polite"></p>
+  </main>
+</body>
+</html>

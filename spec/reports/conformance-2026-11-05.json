@@ -1,0 +1,88 @@
+{
+  "release": "1.0.0-rc.1",
+  "contract_version": "1",
+  "scope": "loopback_http_isolated_sqlite_real_ollama",
+  "provider_model": "qwen3.5:2b",
+  "passed": true,
+  "reports": [
+    {
+      "contract_version": "1",
+      "suite": "core-http",
+      "ownership_checked": true,
+      "passed": true,
+      "checks": [
+        {
+          "name": "authentication",
+          "passed": true,
+          "duration_ms": 3.39
+        },
+        {
+          "name": "discovery_limits_models",
+          "passed": true,
+          "duration_ms": 157.18
+        },
+        {
+          "name": "redacted_validation",
+          "passed": true,
+          "duration_ms": 58.4
+        },
+        {
+          "name": "chat_text_usage",
+          "passed": true,
+          "duration_ms": 535.57
+        },
+        {
+          "name": "chat_sse_usage",
+          "passed": true,
+          "duration_ms": 375.87
+        },
+        {
+          "name": "responses_storage_continuation_sse_ownership",
+          "passed": true,
+          "duration_ms": 1476.54
+        },
+        {
+          "name": "files_unicode_citations_ownership_deletion",
+          "passed": true,
+          "duration_ms": 1412.24
+        }
+      ]
+    },
+    {
+      "contract_version": "1",
+      "suite": "external-sdks",
+      "passed": true,
+      "integrations": [
+        {
+          "integration": "openai",
+          "version": "3.46.0",
+          "checks": [
+            "chat",
+            "responses_store_retrieve_delete",
+            "responses_sse"
+          ],
+          "passed": true
+        },
+        {
+          "integration": "anthropic",
+          "version": "2.5.0",
+          "checks": [
+            "messages",
+            "messages_sse"
+          ],
+          "passed": true
+        },
+        {
+          "integration": "google-genai",
+          "version": "2.34.0",
+          "checks": [
+            "generate_content",
+            "generate_content_sse"
+          ],
+          "passed": true
+        }
+      ]
+    }
+  ],
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

@@ -1,0 +1,42 @@
+{
+  "date": "2026-11-06",
+  "release": "1.0.0-rc.3",
+  "scope": "pre-push public snapshot verification; no production configuration or credential changes",
+  "tests": {
+    "python_full": 283,
+    "python_clean_snapshot_without_private_files": 283,
+    "node": 16,
+    "post_minimization_security_and_reminder_tests": 21,
+    "openapi_artifact_matches": true,
+    "compose_default_and_gpu_valid": true,
+    "reminder_compose_example_valid": true,
+    "python_javascript_syntax": true
+  },
+  "privacy": {
+    "gitleaks_version": "8.30.1",
+    "gitleaks_source_findings": 0,
+    "gitleaks_all_local_git_refs_findings": 0,
+    "exact_local_secret_and_gateway_key_hash_comparison_findings": 0,
+    "private_host_details_removed_from_public_docs_and_reports": true,
+    "complete_operational_runbook_preserved_only_locally": true,
+    "commit_identity": "GitHub noreply",
+    "excluded": [
+      "private .env files",
+      ".security/",
+      "local Compose override",
+      "certificates and private keys",
+      "databases and operational backups",
+      "local AGENTS.md",
+      "separate mobile repository"
+    ]
+  },
+  "limitations": [
+    "Automated scans and exact comparisons do not prove the absence of every possible sensitive datum.",
+    "Existing candidate compatibility, security advisories and external-adoption limits remain documented.",
+    "No deployment, credential rotation or key reactivation is part of this publication."
+  ],
+  "test_notes": [
+    "The focused rerun emitted one aiosqlite teardown deprecation warning; all assertions passed."
+  ],
+  "remote_publication_evidence": "Use the remote commit/tag and GitHub Actions run; this report records checks performed before push."
+}

@@ -1,0 +1,487 @@
+{
+  "release": "1.0.0-rc.3",
+  "date": "2026-11-06",
+  "scope": "authorized_local_application_code_dependencies_container_and_live_HTTPS_review",
+  "https_origin": "https://192.0.2.10",
+  "api_base_url": "https://192.0.2.10/v1",
+  "gateway_image": "sha256:44ae321ad92308690e3c6d6af5c4f7aec24ae9d327db41c78c0a1b5377b16764",
+  "python_tests": 266,
+  "new_security_tests": 12,
+  "node_tests": 16,
+  "python_dependencies_audited": 62,
+  "python_known_advisories": 0,
+  "upgrade": {
+    "scope": "temporary_copy_of_read_only_backup",
+    "migration_passes": 2,
+    "old_tables_verified_by_row_hash": 42,
+    "integrity_and_foreign_keys": true,
+    "passed": true
+  },
+  "container_smoke": {
+    "scope": "built_image_ephemeral_database",
+    "non_root_read_only": true,
+    "image_pdf_video_parsers": true,
+    "speech_generation": true,
+    "input_output_limits": true,
+    "real_ollama": true,
+    "budget_accounted": true,
+    "citations": true,
+    "api_groups_keep_keys_valid": true,
+    "team_identity_profile_key_revocation": true,
+    "passed": true
+  },
+  "https_disposable_integration": {
+    "scope": "disposable_non_root_caddy_and_gateway_unix_socket_real_ollama",
+    "passed": true,
+    "tls_verified": true,
+    "accepted_protocols": [
+      "TLSv1.2",
+      "TLSv1.3"
+    ],
+    "rejected_protocols": [
+      "TLSv1",
+      "TLSv1_1"
+    ],
+    "unauthenticated_admin_denied": true,
+    "response_headers_verified": true,
+    "application_key_still_valid": true,
+    "real_sse_over_verified_tls": true,
+    "secure_browser_session": true,
+    "csrf_rejected": true,
+    "test_session_revoked": true,
+    "http_browser_redirect_and_api_refusal": true,
+    "core_conformance_over_https": true,
+    "external_sdks_over_https": [
+      {
+        "integration": "openai",
+        "version": "3.46.0",
+        "checks": [
+          "chat",
+          "responses_store_retrieve_delete",
+          "responses_sse"
+        ],
+        "passed": true
+      },
+      {
+        "integration": "anthropic",
+        "version": "2.5.0",
+        "checks": [
+          "messages",
+          "messages_sse"
+        ],
+        "passed": true
+      },
+      {
+        "integration": "google-genai",
+        "version": "2.34.0",
+        "checks": [
+          "generate_content",
+          "generate_content_sse"
+        ],
+        "passed": true
+      }
+    ],
+    "no_gateway_tcp_listener": true
+  },
+  "image_scans": [
+    {
+      "service": "gateway",
+      "deployed_image_id": "sha256:44ae321ad92308690e3c6d6af5c4f7aec24ae9d327db41c78c0a1b5377b16764",
+      "scanner": "Trivy 0.76.2",
+      "advisory_counts": {
+        "LOW": 310,
+        "HIGH": 250,
+        "MEDIUM": 419,
+        "UNKNOWN": 18,
+        "CRITICAL": 1
+      },
+      "count_semantics": "package_advisory_entries_not_proven_exploits",
+      "fixable_high_or_critical_libraries": [],
+      "critical_entries": [
+        {
+          "id": "CVE-2026-6653",
+          "package": "libxml2"
+        }
+      ],
+      "raw_scan_sha256": "4899e83fa4ffb940eeaf9ca923bae8c267de842288b1bcc6c2c4d0061355fa5a"
+    },
+    {
+      "service": "codex-broker",
+      "deployed_image_id": "sha256:763ec2b6935d7045c43529970212cf64d5d560cbb7ed08a0612722c56b634c39",
+      "scanner": "Trivy 0.76.2",
+      "advisory_counts": {
+        "LOW": 84,
+        "HIGH": 34,
+        "MEDIUM": 98,
+        "CRITICAL": 1
+      },
+      "count_semantics": "package_advisory_entries_not_proven_exploits",
+      "fixable_high_or_critical_libraries": [],
+      "critical_entries": [
+        {
+          "id": "CVE-2023-45853",
+          "package": "zlib1g"
+        }
+      ],
+      "raw_scan_sha256": "fbd2dc0e0c7638b264ca2bf696354fe9d44aea18df9d3cde27277032de098c7d"
+    },
+    {
+      "service": "antigravity-broker",
+      "deployed_image_id": "sha256:30bb45790596ae4714154a782b07af855d1ab8d0d0e58bcb14ba592354391f64",
+      "scanner": "Trivy 0.76.2",
+      "advisory_counts": {
+        "LOW": 185,
+        "HIGH": 57,
+        "MEDIUM": 147,
+        "CRITICAL": 1
+      },
+      "count_semantics": "package_advisory_entries_not_proven_exploits",
+      "fixable_high_or_critical_libraries": [],
+      "critical_entries": [
+        {
+          "id": "CVE-2023-45853",
+          "package": "zlib1g"
+        }
+      ],
+      "raw_scan_sha256": "6aeb039908e5b76c4813b8903ee2c2ed845a0a2bcc6b42606e916e616f250ca2"
+    },
+    {
+      "service": "claude-broker",
+      "deployed_image_id": "sha256:f9792e52b079a7f0fd38fe53c4d870f75d320088af97d7e88115b5f0ece1a069",
+      "scanner": "Trivy 0.76.2",
+      "advisory_counts": {
+        "LOW": 84,
+        "HIGH": 34,
+        "MEDIUM": 98,
+        "CRITICAL": 1
+      },
+      "count_semantics": "package_advisory_entries_not_proven_exploits",
+      "fixable_high_or_critical_libraries": [],
+      "critical_entries": [
+        {
+          "id": "CVE-2023-45853",
+          "package": "zlib1g"
+        }
+      ],
+      "raw_scan_sha256": "0b3e9c06ab3bd726cb64a66ef4e4fadfbf4acaa6de019fdc91945ef5f6a68b81"
+    },
+    {
+      "service": "maintenance-runner",
+      "deployed_image_id": "sha256:317443837e455058a22940e9216e9f8e6405628ecb55ae14a3e388576a905d4d",
+      "scanner": "Trivy 0.76.2",
+      "advisory_counts": {
+        "HIGH": 4,
+        "MEDIUM": 6,
+        "UNKNOWN": 6
+      },
+      "count_semantics": "package_advisory_entries_not_proven_exploits",
+      "fixable_high_or_critical_libraries": [
+        {
+          "id": "CVE-2026-17106",
+          "package": "github.com/moby/go-archive",
+          "installed_version": "v0.2.0",
+          "fixed_version": "0.3.0"
+        },
+        {
+          "id": "CVE-2026-78669",
+          "package": "golang.org/x/net",
+          "installed_version": "v0.59.0",
+          "fixed_version": "0.60.0"
+        }
+      ],
+      "critical_entries": [],
+      "raw_scan_sha256": "0fe37955f4eb7a06066199d69cc181e19256a78eba1cb288ad217f839bdb52f7"
+    },
+    {
+      "service": "tls-proxy",
+      "deployed_image_id": "sha256:5813f7eb9b94fac4970f9f576695fe1ed1d53d41586fd3eaa350caf7c4627d9c",
+      "scanner": "Trivy 0.76.2",
+      "advisory_counts": {
+        "HIGH": 1,
+        "MEDIUM": 2,
+        "UNKNOWN": 3
+      },
+      "count_semantics": "package_advisory_entries_not_proven_exploits",
+      "fixable_high_or_critical_libraries": [],
+      "critical_entries": [],
+      "raw_scan_sha256": "e398f509a15fca870f3d17824a1020b8cca5f25c9b440958403ce0f53d1a45ac"
+    }
+  ],
+  "static_analysis": {
+    "tool": "Bandit",
+    "counts": {
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 250,
+      "SEVERITY.MEDIUM": 27,
+      "SEVERITY.UNDEFINED": 0
+    },
+    "medium_review": "parameterized_SQL_with_constant_or_validated_identifiers_local_process_and_container_network_operations; warnings_retained_not_globally_suppressed; healthcheck_uses_constant_loopback_HTTP_URL"
+  },
+  "secret_scan": {
+    "scope": "pattern_based_checkout_and_all_local_Git_refs",
+    "git_blobs_scanned": 414,
+    "oversized_git_objects_skipped": 2,
+    "candidate_values_excluded_from_report": true,
+    "confirmed_non_fixture_secrets_in_scanned_git_blobs": 0,
+    "limitations": "pattern_based_not_proof_of_absence; two_oversized_objects_skipped"
+  },
+  "resolved_findings": [
+    {
+      "severity": "high",
+      "finding": "LAN HTTP exposed unauthenticated operator dashboard",
+      "resolution": "verified TLS ingress, dedicated operator login, no gateway TCP listener; legacy HTTP API refused"
+    },
+    {
+      "severity": "high",
+      "finding": "maintenance runner trusted network isolation alone",
+      "resolution": "dedicated bearer credential, non-root UID1000, bounded jobs, restricted command whitelist; Docker daemon remains a trusted privileged boundary"
+    },
+    {
+      "severity": "high",
+      "finding": "known Pillow and Cryptography runtime advisories",
+      "resolution": "Pillow13.0.0, Cryptography50.0.2; pre-decode image format restrictions; unused npm/pip removed"
+    },
+    {
+      "severity": "medium",
+      "finding": "existing SQLite permissions 0644",
+      "resolution": "DB/WAL/SHM0600 and private startup umask"
+    },
+    {
+      "severity": "medium",
+      "finding": "public upstream HTTP and remote Postgres weak TLS defaults",
+      "resolution": "secure profile requires HTTPS for public upstreams and verify-full for remote Postgres"
+    },
+    {
+      "severity": "medium",
+      "finding": "public rich readiness and default proxy/error metadata",
+      "resolution": "readiness requires operator, only private Unix proxy trusted, sensitive provider error redacted, admin docs disabled, auth failure throttling"
+    }
+  ],
+  "regressions_verified": [
+    "existing_FFmpeg_file_pipe_format_allowlists_prevent_disguised_HLS_network_fetch",
+    "application_keys_and_aliases_preserved",
+    "cookie_Secure_HttpOnly_SameSite_strict_and_CSRF",
+    "spoofed_forwarded_headers_cannot_grant_operator_access"
+  ],
+  "residual_risks": [
+    {
+      "priority": "high",
+      "id": "CVE-2026-6653",
+      "component": "gateway libxml2",
+      "status": "NVD critical; Debian minor/no-dsa; no available stable package fix recorded; native reachability not proven absent"
+    },
+    {
+      "priority": "review",
+      "id": "CVE-2023-45853",
+      "component": "broker zlib1g",
+      "status": "Debian will_not_fix; minizip contrib advisory, package detection is not proof the affected code is built or reachable"
+    },
+    {
+      "priority": "review",
+      "id": "CVE-2026-116587",
+      "component": "Caddy go-jose/v3",
+      "status": "vendor advisory retained; local issuer profile does not use ACME or JWT auth; no formal absence-of-reachability proof"
+    },
+    {
+      "priority": "high",
+      "component": "Docker CLI29.9.3 vendor bundles",
+      "ids": [
+        "CVE-2026-17106",
+        "CVE-2026-78669"
+      ],
+      "status": "library fixes exist; official CLI image still bundles reported versions; monitor packaged update rather than blindly relinking binary"
+    },
+    {
+      "priority": "high",
+      "component": "shared LAN Ollama and internal links",
+      "status": "Ollama11434 remains unauthenticated HTTP shared with other projects; Docker same-host brokers also HTTP, no mTLS; requires separate network boundary decision"
+    },
+    {
+      "priority": "high",
+      "component": "maintenance Docker socket",
+      "status": "authenticated non-root process still has Docker daemon privileges; host Docker administrators remain trusted"
+    }
+  ],
+  "manual_client_steps": [
+    "import public local CA in Windows CurrentUser Root after fingerprint comparison",
+    "change client base URL to HTTPS and configure explicit trust for Node/Python/containers",
+    "renew operator session locally before its registered expiry if needed"
+  ],
+  "certificate": {
+    "private_CA_key_exported": false,
+    "windows_trust_installed": false
+  },
+  "limits": [
+    "no destructive production DoS",
+    "no complete host OS or external penetration audit",
+    "no graphical browser available",
+    "native Claude account unavailable",
+    "Gemini3.8-flash-high returned antigravity_execution_failed502; Claude via Antigravity200; not reported as a successful Gemini model test"
+  ],
+  "live": {
+    "scope": "deployed_security_profile",
+    "providers": [
+      {
+        "provider": "ollama",
+        "model": "qwen3.5:2b",
+        "requests": [
+          {
+            "stream": false,
+            "passed": true,
+            "seconds": 0.46
+          },
+          {
+            "stream": true,
+            "passed": true,
+            "seconds": 0.32
+          }
+        ],
+        "test_key_revoked": true
+      },
+      {
+        "provider": "codex",
+        "model": "gpt-6.1-sol",
+        "requests": [
+          {
+            "stream": false,
+            "passed": true,
+            "seconds": 4.86
+          },
+          {
+            "stream": true,
+            "passed": true,
+            "seconds": 5.18
+          }
+        ],
+        "test_key_revoked": true
+      },
+      {
+        "provider": "gemini",
+        "model": "claude-sonnet-4-6",
+        "requests": [
+          {
+            "stream": false,
+            "passed": true,
+            "seconds": 6.09
+          },
+          {
+            "stream": true,
+            "passed": true,
+            "seconds": 6.28
+          }
+        ],
+        "test_key_revoked": true
+      }
+    ],
+    "existing_bootstrap_key_valid": true,
+    "boundary": {
+      "scope": "https_boundary",
+      "passed": true,
+      "tls_verified": true,
+      "accepted_protocols": [
+        "TLSv1.2",
+        "TLSv1.3"
+      ],
+      "rejected_protocols": [
+        "TLSv1",
+        "TLSv1_1"
+      ],
+      "unauthenticated_admin_denied": true,
+      "response_headers_verified": true,
+      "application_key_still_valid": true,
+      "real_sse_over_verified_tls": true,
+      "http_browser_redirect_and_api_refusal": true
+    },
+    "protected_readiness": true,
+    "session": {
+      "scope": "https_boundary",
+      "passed": true,
+      "tls_verified": true,
+      "accepted_protocols": [
+        "TLSv1.2",
+        "TLSv1.3"
+      ],
+      "rejected_protocols": [
+        "TLSv1",
+        "TLSv1_1"
+      ],
+      "unauthenticated_admin_denied": true,
+      "response_headers_verified": true,
+      "secure_browser_session": true,
+      "csrf_rejected": true,
+      "test_session_revoked": true
+    },
+    "passed": true
+  },
+  "public_ca_preserved_after_proxy_recreation": true,
+  "gateway_recreated_with_persistent_unix_socket": true,
+  "boundary_after_gateway_recreation": {
+    "scope": "https_boundary",
+    "passed": true,
+    "tls_verified": true,
+    "accepted_protocols": [
+      "TLSv1.2",
+      "TLSv1.3"
+    ],
+    "rejected_protocols": [
+      "TLSv1",
+      "TLSv1_1"
+    ],
+    "unauthenticated_admin_denied": true,
+    "response_headers_verified": true,
+    "http_browser_redirect_and_api_refusal": true
+  },
+  "ca_private_key_permissions": "0600 uid10001 gid10001",
+  "final_services": [
+    {
+      "service": "gateway",
+      "running": true,
+      "health": "healthy",
+      "published_ports": {}
+    },
+    {
+      "service": "maintenance-runner",
+      "running": true,
+      "health": "healthy",
+      "published_ports": {}
+    },
+    {
+      "service": "codex-broker",
+      "running": true,
+      "health": "healthy",
+      "published_ports": {}
+    },
+    {
+      "service": "antigravity-broker",
+      "running": true,
+      "health": "healthy",
+      "published_ports": {}
+    },
+    {
+      "service": "claude-broker",
+      "running": true,
+      "health": "healthy",
+      "published_ports": {}
+    },
+    {
+      "service": "tls-proxy",
+      "running": true,
+      "health": "external_https_probe",
+      "published_ports": {
+        "8080/tcp": [
+          {
+            "HostIp": "192.0.2.10",
+            "HostPort": "8181"
+          }
+        ],
+        "8443/tcp": [
+          {
+            "HostIp": "192.0.2.10",
+            "HostPort": "443"
+          }
+        ]
+      }
+    }
+  ],
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

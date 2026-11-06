@@ -1,0 +1,33 @@
+# Overlay: base docker-compose.yml + this file; ingress is operator-managed.
+services:
+  gateway:
+    ports: !reset []
+    environment:
+      DATABASE_URL: ${ORG_DATABASE_URL:?Prepare a private organization env file}
+      ADMIN_AUTH_REQUIRED: "true"
+      BOOTSTRAP_API_KEY: ""
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+  postgres:
+    image: postgres:17.11-bookworm@sha256:665dc7b37ac52a17e298511414c21d23ffa4e6a6ef6225b3e5d59c7afb35e994
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${ORG_POSTGRES_PASSWORD:?Prepare a private organization env file}
+      OMNI_APP_PASSWORD: ${ORG_APP_PASSWORD:?Prepare a private organization env file}
+    volumes:
+      - organization_pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres-init.sh:/docker-entrypoint-initdb.d/010-runtime.sh:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U postgres -d postgres]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - default
+volumes:
+  organization_pg_data:

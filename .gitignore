@@ -1,4 +1,6 @@
 .env
+.security/
+docker-compose.override.yml
 .env.*
 !.env.example
 .pytest_cache/
@@ -20,3 +22,16 @@ build/
 *.mov
 *.mkv
 .DS_Store
+
+# Private host instructions, separate checkouts and operational backups
+/AGENTS.md
+/mobile/
+*.pre-https-*
+*.bak
+*.backup
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cer

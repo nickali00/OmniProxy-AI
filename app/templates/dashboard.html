@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="dark">
     <title>OmniProxy AI · Connessioni provider</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/dashboard.css') }}?v=public-i18n-v1">
-    <script src="{{ url_for('static', path='/dashboard-i18n.js') }}?v=public-i18n-v1" defer></script>
-    <script src="{{ url_for('static', path='/dashboard.js') }}?v=public-i18n-v1" defer></script>
+    <link rel="stylesheet" href="{{ url_for('static', path='/dashboard.css') }}?v=security-v1">
+    <script src="{{ url_for('static', path='/dashboard-i18n.js') }}?v=security-v1" defer></script>
+    <script src="{{ url_for('static', path='/dashboard.js') }}?v=security-v1" defer></script>
   </head>
   <body data-build-enabled="{{ 'true' if build_enabled else 'false' }}">
     <div class="ambient ambient-one"></div>
@@ -43,6 +43,12 @@
             <span data-i18n="nav.apis">Local APIs</span>
             <span class="nav-api-count">0</span>
           </button>
+          <button class="nav-item" type="button"
+            data-view-target="capabilities">
+            <span class="nav-icon">⌬</span>
+            <span data-i18n="nav.capabilities">Skills &amp; MCP</span>
+            <span class="nav-capability-count">0</span>
+          </button>
           {% if build_enabled %}
           <button class="nav-item" type="button" data-view-target="build">
             <span class="nav-icon">◇</span>
@@ -61,7 +67,7 @@
           <div class="status-orbit"><span></span></div>
           <div>
             <strong data-i18n="status.gatewayOnline">Gateway online</strong>
-            <small>localhost:{{ gateway_port }}</small>
+            <small id="gateway-status-url">{{ request.base_url }}v1</small>
           </div>
         </div>
       </aside>
@@ -83,6 +89,9 @@
             <button type="button"
               data-view-target="apis" aria-label="Local APIs"
               data-i18n-aria-label="nav.apis">⌘</button>
+            <button type="button" data-view-target="capabilities"
+              aria-label="Skills and MCP"
+              data-i18n-aria-label="nav.capabilities">⌬</button>
             {% if build_enabled %}
             <button type="button"
               data-view-target="build" aria-label="Build">◇</button>
@@ -158,6 +167,10 @@
 
                 <p class="provider-eyebrow">{{ provider.eyebrow }}</p>
                 <h3>{{ provider.name }}</h3>
+                {% if provider.id == "codex" %}
+                <span id="codex-update-indicator" class="provider-update-indicator"
+                  data-i18n="codex.update.available" hidden>Update available</span>
+                {% endif %}
                 <p class="provider-description"
                   data-i18n="provider.{{ provider.id }}.description">{{ provider.description }}</p>
 
@@ -239,7 +252,7 @@
               <div class="api-endpoint">
                 <div class="api-endpoint-copy">
                   <small data-i18n="apis.baseUrl">Gateway base URL · OpenAI-compatible</small>
-                  <code id="gateway-base-url">http://gateway:8000/v1</code>
+                  <code id="gateway-base-url">{{ request.base_url }}v1</code>
                 </div>
                 <button class="api-copy-button" type="button"
                   id="copy-gateway-base-url" data-copy-target="gateway-base-url"
@@ -252,6 +265,13 @@
                 slug remains stable after edits.</p>
             </div>
 
+            <form class="api-group-create" id="api-group-form">
+              <label for="api-group-name" data-i18n="groups.new">New group</label>
+              <input id="api-group-name" name="name" type="text" maxlength="80" required
+                autocomplete="off" data-i18n-placeholder="groups.placeholder" placeholder="e.g. Study, Robots">
+              <button type="submit" data-i18n="groups.create">Create group</button>
+            </form>
+            <p class="api-group-feedback" id="api-group-feedback" role="status"></p>
             <div class="managed-api-list" id="managed-api-list"></div>
             <div class="empty-state" id="managed-api-empty" hidden>
               <span>⌘</span>
@@ -262,11 +282,72 @@
             </div>
           </div>
 
+          <div class="view-panel workspace-view capabilities-view"
+            data-view-panel="capabilities" hidden>
+            <header class="workspace-heading">
+              <div>
+                <p class="overline"><span>04</span>
+                  <span data-i18n="capabilities.eyebrow">Controlled extensions</span>
+                </p>
+                <h1><span data-i18n="capabilities.title">Give every API</span><br>
+                  <em data-i18n="capabilities.titleAccent">the right abilities.</em></h1>
+                <p data-i18n="capabilities.intro">Skills add reusable operating
+                  instructions. MCP servers add only the tools explicitly
+                  authorized for each local API.</p>
+              </div>
+              <div class="capability-heading-actions">
+                <button class="quiet-action" type="button" id="create-skill">
+                  <span data-i18n="capabilities.newSkill">New Skill</span>
+                  <span>＋</span>
+                </button>
+                <button class="primary-action" type="button" id="create-mcp-server">
+                  <span data-i18n="capabilities.newMcp">Add MCP server</span>
+                  <span>⌁</span>
+                </button>
+              </div>
+            </header>
+
+            <div class="capability-security-note">
+              <span aria-hidden="true">◇</span>
+              <p data-i18n="capabilities.security">Skill content is text-only.
+                MCP uses Streamable HTTP, stores Bearer tokens encrypted and
+                requires a per-API tool allowlist.</p>
+            </div>
+
+            <div class="capability-columns">
+              <section class="capability-panel" aria-labelledby="skills-title">
+                <header>
+                  <div>
+                    <small data-i18n="capabilities.skillType">Reusable instructions</small>
+                    <h2 id="skills-title" data-i18n="capabilities.skills">Skills</h2>
+                  </div>
+                  <span id="skill-count">0</span>
+                </header>
+                <div class="capability-list" id="skill-list"></div>
+                <p class="capability-empty" id="skill-empty" hidden
+                  data-i18n="capabilities.noSkills">No Skills configured.</p>
+              </section>
+
+              <section class="capability-panel" aria-labelledby="mcp-title">
+                <header>
+                  <div>
+                    <small data-i18n="capabilities.mcpType">External tool servers</small>
+                    <h2 id="mcp-title" data-i18n="capabilities.mcpServers">MCP servers</h2>
+                  </div>
+                  <span id="mcp-server-count">0</span>
+                </header>
+                <div class="capability-list" id="mcp-server-list"></div>
+                <p class="capability-empty" id="mcp-server-empty" hidden
+                  data-i18n="capabilities.noMcp">No MCP server configured.</p>
+              </section>
+            </div>
+          </div>
+
           <div class="view-panel workspace-view usage-view"
             data-view-panel="usage" hidden>
             <header class="workspace-heading">
               <div>
-                <p class="overline"><span>04</span>
+                <p class="overline"><span>05</span>
                   <span data-i18n="usage.eyebrow">Private telemetry</span>
                 </p>
                 <h1><span data-i18n="usage.title">Every token,</span><br>
@@ -768,6 +849,10 @@
         <div><dt data-i18n="dialog.localClient">Local client</dt><dd id="dialog-client"></dd></div>
       </dl>
       <div class="dialog-note" id="dialog-note"></div>
+      <section class="codex-update" id="codex-update" hidden>
+        <p id="codex-update-status" aria-live="polite"></p>
+        <button type="button" id="codex-update-button" hidden></button>
+      </section>
       <div class="auth-flow" id="auth-flow" hidden>
         <div class="auth-progress" id="auth-progress" role="status">
           <span class="auth-spinner" aria-hidden="true"></span>
@@ -845,10 +930,36 @@
           </label>
         </div>
 
+        <fieldset class="api-limit-settings">
+          <legend data-i18n="limits.title">Context and token limits</legend>
+          <p data-i18n="limits.hint">Estimated tokens include input, output and summaries. Empty limits use provider defaults.</p>
+          <div class="api-form-grid">
+            <div class="api-limit-control"><label for="api-input-tokens"><span data-i18n="limits.input">Maximum input tokens</span><input id="api-input-tokens" type="number" min="1" max="2000000" step="1" disabled></label><label class="api-limit-toggle"><input id="api-input-unlimited" type="checkbox" checked><span data-i18n="limits.noGatewayLimit">No gateway limit</span></label></div>
+            <div class="api-limit-control"><label for="api-context-tokens"><span data-i18n="limits.context">Maximum context (input + output)</span><input id="api-context-tokens" type="number" min="512" max="2000000" step="1" disabled></label><label class="api-limit-toggle"><input id="api-context-unlimited" type="checkbox" checked><span data-i18n="limits.noGatewayLimit">No gateway limit</span></label></div>
+            <div class="api-limit-control"><label for="api-output-tokens"><span data-i18n="limits.output">Maximum output per call</span><input id="api-output-tokens" type="number" min="1" max="128000" step="1" disabled></label><label class="api-limit-toggle"><input id="api-output-unlimited" type="checkbox" checked><span data-i18n="limits.noGatewayLimit">No gateway limit</span></label></div>
+            <label><span data-i18n="limits.contextMode">When context is full</span><select id="api-context-mode"><option value="reject" data-i18n="limits.reject">Reject the request</option><option value="summarize" data-i18n="limits.summarize">Summarize older complete turns</option></select></label>
+            <label><span data-i18n="limits.period">Token budget period</span><select id="api-budget-period"><option value="unlimited" data-i18n="limits.unlimited">No usage limit</option><option value="daily" data-i18n="limits.daily">Daily</option><option value="weekly" data-i18n="limits.weekly">Weekly</option><option value="monthly" data-i18n="limits.monthly">Monthly</option></select></label>
+            <label><span data-i18n="limits.budget">Tokens per period</span><input id="api-token-budget" type="number" min="1" max="1000000000000" step="1" disabled></label>
+          </div>
+          <p data-i18n="limits.summaryHint">Summaries can lose details. Current instructions, tools and the latest complete turns are preserved.</p>
+        </fieldset>
+
         <div class="api-routing-preview">
           <span data-i18n="apiDialog.permanentRouting">Permanent routing</span>
           <strong id="api-routing-preview"
             data-i18n="apiDialog.selectModel">Select a model</strong>
+        </div>
+        <div class="api-capability-grid">
+          <fieldset>
+            <legend data-i18n="apiDialog.skills">Attached Skills</legend>
+            <p data-i18n="apiDialog.skillsHint">Their instructions are added to every request.</p>
+            <div class="api-capability-options" id="api-skill-options"></div>
+          </fieldset>
+          <fieldset>
+            <legend data-i18n="apiDialog.mcpTools">Allowed MCP tools</legend>
+            <p data-i18n="apiDialog.mcpHint">Only checked tools can be invoked by this API.</p>
+            <div class="api-capability-options" id="api-mcp-options"></div>
+          </fieldset>
         </div>
         <p class="auth-feedback" id="api-form-feedback"
           aria-live="polite"></p>
@@ -879,6 +990,95 @@
           id="secret-result-close"
           data-i18n="apiDialog.saved">I saved the key</button>
       </div>
+    </dialog>
+
+    <dialog class="provider-dialog capability-dialog" id="skill-dialog">
+      <button class="dialog-close" type="button" data-skill-dialog-close
+        aria-label="Close" data-i18n-aria-label="dialog.close">×</button>
+      <form id="skill-form">
+        <input type="hidden" id="skill-id">
+        <p class="dialog-kicker" data-i18n="skillDialog.kicker">Text-only capability</p>
+        <h2 id="skill-dialog-title" data-i18n="skillDialog.new">New Skill</h2>
+        <p class="api-form-intro" data-i18n="skillDialog.intro">Write reusable
+          instructions comparable to a SKILL.md. OmniProxy never executes code
+          contained here.</p>
+        <div class="capability-form-grid">
+          <label>
+            <span data-i18n="skillDialog.name">Name</span>
+            <input id="skill-name" required minlength="2" maxlength="80"
+              autocomplete="off" placeholder="e.g. Concise analyst">
+          </label>
+          <label>
+            <span data-i18n="skillDialog.description">Description</span>
+            <input id="skill-description" maxlength="500" autocomplete="off">
+          </label>
+          <label class="capability-form-wide">
+            <span data-i18n="skillDialog.instructions">Instructions (Markdown)</span>
+            <textarea id="skill-instructions" required maxlength="50000"
+              rows="12" spellcheck="true"></textarea>
+          </label>
+          <label class="capability-switch">
+            <input id="skill-enabled" type="checkbox" checked>
+            <span data-i18n="common.enabled">Enabled</span>
+          </label>
+        </div>
+        <p class="auth-feedback" id="skill-feedback" aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="dialog-secondary" type="button"
+            data-skill-dialog-close data-i18n="apiDialog.cancel">Cancel</button>
+          <button class="dialog-primary" type="submit" id="skill-save"
+            data-i18n="common.save">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="provider-dialog capability-dialog" id="mcp-dialog">
+      <button class="dialog-close" type="button" data-mcp-dialog-close
+        aria-label="Close" data-i18n-aria-label="dialog.close">×</button>
+      <form id="mcp-form">
+        <input type="hidden" id="mcp-id">
+        <p class="dialog-kicker" data-i18n="mcpDialog.kicker">Streamable HTTP</p>
+        <h2 id="mcp-dialog-title" data-i18n="mcpDialog.new">Add MCP server</h2>
+        <p class="api-form-intro" data-i18n="mcpDialog.intro">OmniProxy verifies
+          the endpoint and imports its tool schemas. Public endpoints must use HTTPS.</p>
+        <div class="capability-form-grid">
+          <label>
+            <span data-i18n="mcpDialog.name">Name</span>
+            <input id="mcp-name" required minlength="2" maxlength="80"
+              autocomplete="off" placeholder="e.g. Home Assistant">
+          </label>
+          <label>
+            <span data-i18n="mcpDialog.url">MCP endpoint</span>
+            <input id="mcp-url" type="url" required maxlength="2048"
+              autocomplete="off" placeholder="http://server:3000/mcp">
+          </label>
+          <label>
+            <span data-i18n="mcpDialog.auth">Authentication</span>
+            <select id="mcp-auth-type">
+              <option value="none" data-i18n="mcpDialog.noAuth">None</option>
+              <option value="bearer" data-i18n="mcpDialog.bearer">Bearer token</option>
+            </select>
+          </label>
+          <label id="mcp-token-field" hidden>
+            <span data-i18n="mcpDialog.token">Bearer token</span>
+            <input id="mcp-token" type="password" maxlength="8192"
+              autocomplete="new-password">
+            <small id="mcp-token-hint"
+              data-i18n="mcpDialog.tokenHint">Encrypted before it reaches SQLite.</small>
+          </label>
+          <label class="capability-switch">
+            <input id="mcp-enabled" type="checkbox" checked>
+            <span data-i18n="common.enabled">Enabled</span>
+          </label>
+        </div>
+        <p class="auth-feedback" id="mcp-feedback" aria-live="polite"></p>
+        <div class="dialog-actions">
+          <button class="dialog-secondary" type="button"
+            data-mcp-dialog-close data-i18n="apiDialog.cancel">Cancel</button>
+          <button class="dialog-primary" type="submit" id="mcp-save"
+            data-i18n="mcpDialog.verifySave">Verify and save</button>
+        </div>
+      </form>
     </dialog>
 
     {% if build_enabled %}

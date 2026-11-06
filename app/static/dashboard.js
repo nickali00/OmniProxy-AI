@@ -68,6 +68,74 @@ const authCodeLabel = dialog?.querySelector("#auth-code-label");
 const authCodeHint = dialog?.querySelector("#auth-code-hint");
 const authCodeInput = dialog?.querySelector("#auth-code");
 const authFeedback = dialog?.querySelector("#auth-feedback");
+const codexUpdate = dialog?.querySelector("#codex-update");
+const codexUpdateStatus = dialog?.querySelector("#codex-update-status");
+const codexUpdateButton = dialog?.querySelector("#codex-update-button");
+let codexUpdateJob = null;
+const codexUpdateIndicator = document.querySelector("#codex-update-indicator");
+
+async function fetchCodexUpdate() {
+  const info = await dashboardRequest("/api/providers/codex/update");
+  if (codexUpdateIndicator) codexUpdateIndicator.hidden = !info.update_available;
+  return info;
+}
+
+async function checkCodexUpdate() {
+  if (!codexUpdate || !codexUpdateStatus || !codexUpdateButton) return;
+  codexUpdate.hidden = false;
+  codexUpdateStatus.textContent = tr("codex.update.checking");
+  codexUpdateButton.hidden = true;
+  try {
+    const info = await fetchCodexUpdate();
+    if (activeProvider !== "codex") return;
+    codexUpdateStatus.textContent = info.latest
+      ? tr("codex.update.versions", { installed: info.installed || "?", latest: info.latest })
+      : tr("codex.update.unavailable", { installed: info.installed || "?" });
+    codexUpdateButton.hidden = !info.latest || !!codexUpdateJob;
+    codexUpdateButton.disabled = !info.update_available;
+    codexUpdateButton.textContent = info.update_available
+      ? tr("codex.update.action") : tr("codex.update.current");
+  } catch {
+    codexUpdateStatus.textContent = tr("codex.update.unavailable", { installed: "?" });
+  }
+}
+
+fetchCodexUpdate().catch(() => {});
+
+async function pollCodexUpdate(jobId) {
+  for (;;) {
+    await new Promise((resolve) => window.setTimeout(resolve, 2000));
+    try {
+      const job = await dashboardRequest(`/api/providers/codex/update/jobs/${encodeURIComponent(jobId)}`);
+      if (codexUpdateStatus) codexUpdateStatus.textContent = tr(`codex.update.${job.status}`);
+      if (["completed", "failed"].includes(job.status)) {
+        codexUpdateJob = null;
+        if (job.status === "completed") await checkCodexUpdate();
+        else if (codexUpdateButton) codexUpdateButton.disabled = false;
+        return;
+      }
+    } catch {
+      if (codexUpdateStatus) codexUpdateStatus.textContent = tr("codex.update.unavailable", { installed: "?" });
+      codexUpdateJob = null;
+      return;
+    }
+  }
+}
+
+codexUpdateButton?.addEventListener("click", async () => {
+  if (codexUpdateJob) return;
+  codexUpdateButton.disabled = true;
+  if (codexUpdateStatus) codexUpdateStatus.textContent = tr("codex.update.queued");
+  try {
+    const job = await dashboardRequest("/api/providers/codex/update", { method: "POST" });
+    codexUpdateJob = job.id;
+    await pollCodexUpdate(job.id);
+  } catch (error) {
+    codexUpdateJob = null;
+    codexUpdateButton.disabled = false;
+    if (codexUpdateStatus) codexUpdateStatus.textContent = error.message;
+  }
+});
 
 const providerConfig = {
   ollama: {
@@ -199,7 +267,9 @@ async function dashboardRequest(path, options = {}) {
     throw new Error(
       typeof payload.message === "string"
         ? payload.message
-        : tr("common.operationFailed"),
+        : typeof payload.error?.message === "string"
+          ? payload.error.message
+          : tr("common.operationFailed"),
     );
   }
   return payload;
@@ -244,6 +314,12 @@ function updateProviderCard(provider, payload) {
   state.connected = payload.connected === true;
   state.installed = payload.installed !== false;
   state.details = payload;
+  if (provider === "codex" && typeof payload.cli_version === "string") {
+    const label = `Codex CLI ${payload.cli_version}`;
+    const client = card.querySelector(".provider-meta > div:last-child strong");
+    if (client) client.textContent = label;
+    if (activeProvider === "codex") setText("#dialog-client", label);
+  }
   updateConnectionCount(card, state.connected);
 
   const label = liveLabel(provider, state);
@@ -651,6 +727,7 @@ async function cancelProviderAuth() {
 function openProvider(button) {
   if (!dialog) return;
   activeProvider = button.dataset.openProvider;
+  if (codexUpdate) codexUpdate.hidden = activeProvider !== "codex";
   const config = providerConfig[activeProvider];
   setText("#dialog-title", button.dataset.providerName || "Provider");
   setText(
@@ -672,6 +749,7 @@ function openProvider(button) {
   renderProviderDialog(activeProvider);
   dialog.showModal();
   refreshProviderStatus(activeProvider);
+  if (activeProvider === "codex") checkCodexUpdate();
 }
 
 document.querySelectorAll("[data-open-provider]").forEach((button) => {
@@ -717,7 +795,8 @@ const catalogState = {
   loaded: false,
 };
 let managedApis = [];
-const MANAGED_API_BASE_URL = "http://gateway:8000/v1";
+let managedApiGroups = [];
+const MANAGED_API_BASE_URL = `${window.location.origin}/v1`;
 
 const apiDialog = document.querySelector("#api-dialog");
 const apiForm = document.querySelector("#api-config-form");
@@ -735,6 +814,42 @@ const newApiModel = document.querySelector("#new-api-model");
 const newApiBaseUrl = document.querySelector("#new-api-base-url");
 const copyApiSecret = document.querySelector("#copy-api-secret");
 const secretResultClose = document.querySelector("#secret-result-close");
+const apiSkillOptions = document.querySelector("#api-skill-options");
+const apiMcpOptions = document.querySelector("#api-mcp-options");
+const apiContextTokens = document.querySelector("#api-context-tokens");
+const apiInputTokens = document.querySelector("#api-input-tokens");
+const apiOutputTokens = document.querySelector("#api-output-tokens");
+const apiContextMode = document.querySelector("#api-context-mode");
+const apiBudgetPeriod = document.querySelector("#api-budget-period");
+const apiTokenBudget = document.querySelector("#api-token-budget");
+const optionalTokenLimits = [
+  [apiInputTokens, document.querySelector("#api-input-unlimited")],
+  [apiContextTokens, document.querySelector("#api-context-unlimited")],
+  [apiOutputTokens, document.querySelector("#api-output-unlimited")],
+];
+function updateOptionalTokenLimits() {
+  optionalTokenLimits.forEach(([input, unlimited]) => {
+    if (!input || !unlimited) return;
+    input.disabled = unlimited.checked;
+    input.required = !unlimited.checked;
+  });
+}
+optionalTokenLimits.forEach(([, unlimited]) => unlimited?.addEventListener("change", updateOptionalTokenLimits));
+
+function updateBudgetInput() {
+  if (!apiTokenBudget || !apiBudgetPeriod) return;
+  apiTokenBudget.disabled = apiBudgetPeriod.value === "unlimited";
+  apiTokenBudget.required = !apiTokenBudget.disabled;
+}
+apiBudgetPeriod?.addEventListener("change", updateBudgetInput);
+
+const capabilityState = {
+  skills: [],
+  servers: [],
+  loaded: false,
+  loading: false,
+  promise: null,
+};
 
 function switchView(view) {
   if (view === "build" && !BUILD_ENABLED) view = "connections";
@@ -748,7 +863,9 @@ function switchView(view) {
   if (view === "apis") {
     loadModelCatalog();
     loadManagedApis();
+    loadCapabilities();
   }
+  if (view === "capabilities") loadCapabilities(true);
   if (view === "usage") loadUsage();
   if (view === "build" && BUILD_ENABLED) {
     loadModelCatalog().then(() => loadBuildProjects());
@@ -794,6 +911,7 @@ function renderProviderFilters() {
     codex: "✣",
     gemini: "✦",
     claude: "A",
+    openai_compatible: "↗",
   };
   availableProviders.forEach((provider) => {
     const button = document.createElement("button");
@@ -1015,8 +1133,97 @@ function setApiFeedback(message = "", state = "") {
   apiFormFeedback.className = `auth-feedback${state ? ` ${state}` : ""}`;
 }
 
+
+function capabilityOption({ value, label, detail = "", checked = false, data = {} }) {
+  const optionLabel = document.createElement("label");
+  optionLabel.className = "api-capability-option";
+  const input = document.createElement("input");
+  input.type = "checkbox";
+  input.value = String(value);
+  input.checked = checked;
+  Object.entries(data).forEach(([key, item]) => {
+    input.dataset[key] = String(item);
+  });
+  const copy = document.createElement("span");
+  copy.textContent = label;
+  if (detail) {
+    const small = document.createElement("small");
+    small.textContent = detail;
+    copy.append(small);
+  }
+  optionLabel.append(input, copy);
+  return optionLabel;
+}
+
+function renderApiCapabilityOptions(existing = null) {
+  const selectedSkills = new Set(existing?.skill_ids || []);
+  apiSkillOptions?.replaceChildren();
+  capabilityState.skills
+    .filter((skill) => skill.enabled)
+    .forEach((skill) => {
+      apiSkillOptions.append(
+        capabilityOption({
+          value: skill.id,
+          label: skill.name,
+          detail: skill.description,
+          checked: selectedSkills.has(skill.id),
+        }),
+      );
+    });
+  if (apiSkillOptions && !apiSkillOptions.children.length) {
+    const empty = document.createElement("p");
+    empty.textContent = tr("apiDialog.noSkills");
+    apiSkillOptions.append(empty);
+  }
+
+  const selectedTools = new Set(
+    (existing?.mcp_tools || []).flatMap((server) =>
+      (server.tool_names || []).map(
+        (toolName) => `${server.server_id}:${toolName}`,
+      ),
+    ),
+  );
+  apiMcpOptions?.replaceChildren();
+  capabilityState.servers
+    .filter((server) => server.enabled && server.status === "connected")
+    .forEach((server) => {
+      (server.tools || []).forEach((tool) => {
+        const key = `${server.id}:${tool.name}`;
+        apiMcpOptions.append(
+          capabilityOption({
+            value: tool.name,
+            label: tool.title || tool.name,
+            detail: `${server.name} · ${tool.description || tool.name}`,
+            checked: selectedTools.has(key),
+            data: { serverId: server.id, toolName: tool.name },
+          }),
+        );
+      });
+    });
+  if (apiMcpOptions && !apiMcpOptions.children.length) {
+    const empty = document.createElement("p");
+    empty.textContent = tr("apiDialog.noMcpTools");
+    apiMcpOptions.append(empty);
+  }
+}
+
+function selectedApiMcpTools() {
+  const grouped = new Map();
+  apiMcpOptions?.querySelectorAll("input:checked").forEach((input) => {
+    const serverId = Number.parseInt(input.dataset.serverId || "", 10);
+    const toolName = input.dataset.toolName;
+    if (!Number.isInteger(serverId) || !toolName) return;
+    if (!grouped.has(serverId)) grouped.set(serverId, []);
+    grouped.get(serverId).push(toolName);
+  });
+  return [...grouped].map(([serverId, toolNames]) => ({
+    server_id: serverId,
+    tool_names: toolNames,
+  }));
+}
+
 async function openApiConfigDialog(prefill = {}) {
-  await loadModelCatalog();
+  await Promise.all([loadModelCatalog(), loadCapabilities()]);
   if (!apiDialog || !apiForm || !apiSecretResult) return;
   apiForm.hidden = false;
   apiSecretResult.hidden = true;
@@ -1029,6 +1236,16 @@ async function openApiConfigDialog(prefill = {}) {
     : null;
   apiConfigId.value = existing ? String(existing.id) : "";
   apiName.value = existing?.name || prefill.name || "";
+  const limits = existing?.limits || {};
+  apiInputTokens.value = limits.input_tokens ?? "";
+  apiContextTokens.value = limits.context_tokens ?? "";
+  apiOutputTokens.value = limits.output_tokens ?? "";
+  apiContextMode.value = limits.context_mode || "reject";
+  apiBudgetPeriod.value = limits.budget_period || "unlimited";
+  apiTokenBudget.value = limits.token_budget ?? "";
+  optionalTokenLimits.forEach(([input, unlimited]) => { unlimited.checked = !input.value; });
+  updateOptionalTokenLimits();
+  updateBudgetInput();
   setText(
     "#api-dialog-title",
     existing ? tr("apiDialog.edit") : tr("apiDialog.new"),
@@ -1044,6 +1261,7 @@ async function openApiConfigDialog(prefill = {}) {
   populateApiProviders(providerId);
   populateApiModels(modelId);
   populateApiReasoning(reasoning);
+  renderApiCapabilityOptions(existing);
   apiDialog.showModal();
   window.setTimeout(() => apiName.focus(), 50);
 }
@@ -1070,11 +1288,27 @@ document.querySelector("[data-empty-create-api]")?.addEventListener("click", () 
 apiForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const id = apiConfigId.value;
+  if (apiContextMode.value === "summarize" && apiContextTokens.disabled && apiInputTokens.disabled) {
+    setApiFeedback(tr("limits.contextRequired"), "error");
+    return;
+  }
   const payload = {
     name: apiName.value.trim(),
     provider: apiProvider.value,
     model: apiModel.value,
     reasoning_effort: apiReasoning.value,
+    skill_ids: [...(apiSkillOptions?.querySelectorAll("input:checked") || [])]
+      .map((input) => Number.parseInt(input.value, 10))
+      .filter(Number.isInteger),
+    mcp_tools: selectedApiMcpTools(),
+    limits: {
+      input_tokens: apiInputTokens.disabled ? null : Number(apiInputTokens.value),
+      context_tokens: apiContextTokens.disabled ? null : Number(apiContextTokens.value),
+      output_tokens: apiOutputTokens.disabled ? null : Number(apiOutputTokens.value),
+      context_mode: apiContextMode.value,
+      budget_period: apiBudgetPeriod.value,
+      token_budget: apiBudgetPeriod.value === "unlimited" ? null : Number(apiTokenBudget.value),
+    },
   };
   apiSave.disabled = true;
   setApiFeedback(
@@ -1123,8 +1357,115 @@ function renderManagedApis() {
   const navCount = document.querySelector(".nav-api-count");
   if (!list || !empty) return;
   list.replaceChildren();
-  empty.hidden = managedApis.length !== 0;
+  empty.hidden = managedApis.length !== 0 || managedApiGroups.length !== 0;
   if (navCount) navCount.textContent = String(managedApis.length);
+
+  const destinations = new Map();
+  const membership = new Map();
+  managedApiGroups.forEach((group) => {
+    const section = document.createElement("section");
+    section.className = "api-group";
+    section.dataset.apiGroup = group.id;
+    const heading = document.createElement("div");
+    heading.className = "api-group-heading";
+    const body = document.createElement("div");
+    body.className = "api-group-body";
+    body.id = `api-group-body-${group.id}`;
+    body.hidden = group.collapsed;
+    const toggle = document.createElement("button");
+    toggle.type = "button";
+    toggle.className = "api-group-toggle";
+    toggle.setAttribute("aria-expanded", String(!group.collapsed));
+    toggle.setAttribute("aria-controls", body.id);
+    const name = document.createElement("strong");
+    name.textContent = group.name;
+    const count = document.createElement("span");
+    count.className = "api-group-count";
+    count.textContent = String(group.api_ids.length);
+    toggle.append(name, count);
+    toggle.addEventListener("click", async () => {
+      toggle.disabled = true;
+      try {
+        await dashboardRequest(`/api/gateway-apis/groups/${encodeURIComponent(group.id)}`, { method: "PATCH", body: JSON.stringify({ collapsed: !group.collapsed }) });
+        group.collapsed = !group.collapsed;
+        body.hidden = group.collapsed;
+        toggle.setAttribute("aria-expanded", String(!group.collapsed));
+      } catch (error) {
+        setGroupFeedback(error.message);
+      } finally {
+        toggle.disabled = false;
+      }
+    });
+    const renameForm = document.createElement("form");
+    renameForm.className = "api-group-rename";
+    renameForm.hidden = true;
+    const renameInput = document.createElement("input");
+    renameInput.type = "text";
+    renameInput.value = group.name;
+    renameInput.maxLength = 80;
+    renameInput.required = true;
+    renameInput.setAttribute("aria-label", tr("groups.name"));
+    const save = document.createElement("button");
+    save.type = "submit";
+    save.textContent = tr("apiDialog.save");
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.textContent = tr("groups.cancel");
+    cancel.addEventListener("click", () => { renameForm.hidden = true; renameInput.value = group.name; });
+    renameForm.append(renameInput, save, cancel);
+    renameForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      save.disabled = true;
+      try {
+        await dashboardRequest(`/api/gateway-apis/groups/${encodeURIComponent(group.id)}`, { method: "PATCH", body: JSON.stringify({ name: renameInput.value.trim() }) });
+        await loadManagedApis();
+      } catch (error) {
+        setGroupFeedback(error.message);
+      } finally {
+        save.disabled = false;
+      }
+    });
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.className = "api-group-action";
+    rename.textContent = tr("groups.rename");
+    rename.addEventListener("click", () => { renameForm.hidden = false; renameInput.focus(); });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "api-group-action";
+    remove.textContent = tr("groups.delete");
+    remove.addEventListener("click", async () => {
+      if (!window.confirm(tr("groups.deleteConfirm", { name: group.name }))) return;
+      remove.disabled = true;
+      try {
+        await dashboardRequest(`/api/gateway-apis/groups/${encodeURIComponent(group.id)}`, { method: "DELETE" });
+        await loadManagedApis();
+      } catch (error) {
+        setGroupFeedback(error.message);
+        remove.disabled = false;
+      }
+    });
+    heading.append(toggle, rename, remove);
+    section.append(heading, renameForm, body);
+    list.append(section);
+    destinations.set(group.id, body);
+    group.api_ids.forEach((id) => membership.set(id, group.id));
+    if (!group.api_ids.length) {
+      const hint = document.createElement("p");
+      hint.className = "api-group-empty";
+      hint.textContent = tr("groups.empty");
+      body.append(hint);
+    }
+  });
+  const ungrouped = document.createElement("div");
+  ungrouped.className = "api-group-body api-ungrouped";
+  if (managedApiGroups.length && managedApis.some((item) => !membership.has(item.id))) {
+    const title = document.createElement("h2");
+    title.className = "api-ungrouped-title";
+    title.textContent = tr("groups.none");
+    ungrouped.append(title);
+  }
+  list.append(ungrouped);
 
   managedApis.forEach((item) => {
     const card = document.createElement("article");
@@ -1151,6 +1492,28 @@ function renderManagedApis() {
     slug.className = "api-slug";
     slug.textContent = `model: ${item.slug}`;
     identity.append(titleRow, slug);
+    const groupLabel = document.createElement("label");
+    groupLabel.className = "api-group-select";
+    groupLabel.append(document.createTextNode(tr("groups.label")));
+    const groupSelect = document.createElement("select");
+    groupSelect.setAttribute("aria-label", tr("groups.forKey", { name: item.name }));
+    groupSelect.append(option("", tr("groups.none")));
+    managedApiGroups.forEach((group) => groupSelect.append(option(group.id, group.name)));
+    groupSelect.value = membership.get(item.id) || "";
+    groupSelect.addEventListener("change", async () => {
+      groupSelect.disabled = true;
+      try {
+        await dashboardRequest(`/api/gateway-apis/${encodeURIComponent(item.id)}/group`, { method: "PUT", body: JSON.stringify({ group_id: groupSelect.value || null }) });
+        await loadManagedApis();
+      } catch (error) {
+        groupSelect.value = membership.get(item.id) || "";
+        setGroupFeedback(error.message);
+      } finally {
+        groupSelect.disabled = false;
+      }
+    });
+    groupLabel.append(groupSelect);
+    identity.append(groupLabel);
 
     const routing = document.createElement("div");
     const route = document.createElement("div");
@@ -1175,7 +1538,37 @@ function renderManagedApis() {
       })
       : tr("apis.neverUsed");
     keyMeta.append(hint, used);
-    routing.append(route, keyMeta);
+    const capabilitySummary = document.createElement("div");
+    capabilitySummary.className = "api-capability-summary";
+    const skillCount = Array.isArray(item.skill_ids)
+      ? item.skill_ids.length
+      : 0;
+    const toolCount = Array.isArray(item.mcp_tools)
+      ? item.mcp_tools.reduce(
+        (total, server) => total + (server.tool_names?.length || 0),
+        0,
+      )
+      : 0;
+    if (skillCount) {
+      const badge = document.createElement("span");
+      badge.className = "api-capability-badge";
+      badge.textContent = tr("apis.skillCount", { count: skillCount });
+      capabilitySummary.append(badge);
+    }
+    if (toolCount) {
+      const badge = document.createElement("span");
+      badge.className = "api-capability-badge";
+      badge.textContent = tr("apis.toolCount", { count: toolCount });
+      capabilitySummary.append(badge);
+    }
+    routing.append(route, keyMeta, capabilitySummary);
+    const budget = document.createElement("div");
+    budget.className = "api-key-meta";
+    const usage = item.token_usage;
+    budget.textContent = usage?.token_budget != null
+      ? tr("limits.usage", { used: usage.used_tokens.toLocaleString(currentLocale()), budget: usage.token_budget.toLocaleString(currentLocale()), reset: new Date(usage.resets_at).toLocaleString(currentLocale()) })
+      : tr("limits.unlimited");
+    routing.append(budget);
 
     const actions = document.createElement("div");
     actions.className = "api-card-actions";
@@ -1199,20 +1592,46 @@ function renderManagedApis() {
     remove.addEventListener("click", () => deleteManagedApi(item));
     actions.append(toggle, edit, remove);
     card.append(identity, routing, actions);
-    list.append(card);
+    (destinations.get(membership.get(item.id)) || ungrouped).append(card);
   });
 }
 
 async function loadManagedApis() {
   try {
-    const result = await dashboardRequest("/api/gateway-apis");
+    const [result, groups] = await Promise.all([
+      dashboardRequest("/api/gateway-apis"),
+      dashboardRequest("/api/gateway-apis/groups"),
+    ]);
     managedApis = Array.isArray(result.data) ? result.data : [];
+    managedApiGroups = Array.isArray(groups.data) ? groups.data : [];
+    setGroupFeedback("");
     renderManagedApis();
-  } catch {
-    managedApis = [];
-    renderManagedApis();
+  } catch (error) {
+    setGroupFeedback(error.message);
   }
 }
+
+function setGroupFeedback(message) {
+  const feedback = document.querySelector("#api-group-feedback");
+  if (feedback) feedback.textContent = message;
+}
+
+document.querySelector("#api-group-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const input = form.querySelector("input");
+  const button = form.querySelector("button");
+  button.disabled = true;
+  try {
+    await dashboardRequest("/api/gateway-apis/groups", { method: "POST", body: JSON.stringify({ name: input.value.trim() }) });
+    input.value = "";
+    await loadManagedApis();
+  } catch (error) {
+    setGroupFeedback(error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
 
 async function toggleManagedApi(item, button) {
   const enabling = item.status === "paused";
@@ -1245,6 +1664,362 @@ async function deleteManagedApi(item) {
       { method: "DELETE" },
     );
     await loadManagedApis();
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+
+const skillDialog = document.querySelector("#skill-dialog");
+const skillForm = document.querySelector("#skill-form");
+const skillId = document.querySelector("#skill-id");
+const skillName = document.querySelector("#skill-name");
+const skillDescription = document.querySelector("#skill-description");
+const skillInstructions = document.querySelector("#skill-instructions");
+const skillEnabled = document.querySelector("#skill-enabled");
+const skillFeedback = document.querySelector("#skill-feedback");
+const skillSave = document.querySelector("#skill-save");
+const mcpDialog = document.querySelector("#mcp-dialog");
+const mcpForm = document.querySelector("#mcp-form");
+const mcpId = document.querySelector("#mcp-id");
+const mcpName = document.querySelector("#mcp-name");
+const mcpUrl = document.querySelector("#mcp-url");
+const mcpAuthType = document.querySelector("#mcp-auth-type");
+const mcpToken = document.querySelector("#mcp-token");
+const mcpTokenField = document.querySelector("#mcp-token-field");
+const mcpTokenHint = document.querySelector("#mcp-token-hint");
+const mcpEnabled = document.querySelector("#mcp-enabled");
+const mcpFeedback = document.querySelector("#mcp-feedback");
+const mcpSave = document.querySelector("#mcp-save");
+
+function setCapabilityFeedback(element, message = "", state = "") {
+  if (!element) return;
+  element.textContent = message;
+  element.className = `auth-feedback${state ? ` ${state}` : ""}`;
+}
+
+function capabilityStatus(status) {
+  return tr(`capabilities.status.${status || "unchecked"}`);
+}
+
+function renderSkills() {
+  const list = document.querySelector("#skill-list");
+  const empty = document.querySelector("#skill-empty");
+  if (!list || !empty) return;
+  list.replaceChildren();
+  empty.hidden = capabilityState.skills.length !== 0;
+  setText("#skill-count", String(capabilityState.skills.length));
+  capabilityState.skills.forEach((skill) => {
+    const card = document.createElement("article");
+    card.className = `capability-card${skill.enabled ? "" : " disabled"}`;
+    const top = document.createElement("div");
+    top.className = "capability-card-top";
+    const title = document.createElement("h3");
+    title.textContent = skill.name;
+    const state = document.createElement("span");
+    state.className = `capability-status${skill.enabled ? " connected" : ""}`;
+    state.textContent = skill.enabled
+      ? tr("common.enabled")
+      : tr("common.disabled");
+    top.append(title, state);
+    const description = document.createElement("p");
+    description.textContent = skill.description || tr("capabilities.noDescription");
+    const meta = document.createElement("div");
+    meta.className = "capability-card-meta";
+    meta.textContent = `${skill.slug} · ${skill.instructions.length} ${tr("capabilities.characters")}`;
+    const actions = document.createElement("div");
+    actions.className = "capability-card-actions";
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = tr("apis.edit");
+    edit.addEventListener("click", () => openSkillDialog(skill));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = tr("apis.delete");
+    remove.addEventListener("click", () => deleteSkill(skill));
+    actions.append(edit, remove);
+    card.append(top, description, meta, actions);
+    list.append(card);
+  });
+}
+
+function renderMcpServers() {
+  const list = document.querySelector("#mcp-server-list");
+  const empty = document.querySelector("#mcp-server-empty");
+  if (!list || !empty) return;
+  list.replaceChildren();
+  empty.hidden = capabilityState.servers.length !== 0;
+  setText("#mcp-server-count", String(capabilityState.servers.length));
+  capabilityState.servers.forEach((server) => {
+    const card = document.createElement("article");
+    card.className = `capability-card${server.enabled ? "" : " disabled"}`;
+    const top = document.createElement("div");
+    top.className = "capability-card-top";
+    const title = document.createElement("h3");
+    title.textContent = server.name;
+    const state = document.createElement("span");
+    state.className = `capability-status ${server.status}`;
+    state.textContent = capabilityStatus(server.status);
+    top.append(title, state);
+    const url = document.createElement("code");
+    url.textContent = server.url;
+    const meta = document.createElement("div");
+    meta.className = "capability-card-meta";
+    meta.textContent = tr("capabilities.mcpMeta", {
+      auth: server.auth_type === "bearer" ? "Bearer" : tr("mcpDialog.noAuth"),
+      count: server.tools?.length || 0,
+    });
+    if (server.status_message) {
+      const message = document.createElement("p");
+      message.textContent = server.status_message;
+      card.append(top, url, meta, message);
+    } else {
+      card.append(top, url, meta);
+    }
+    if (server.tools?.length) {
+      const tools = document.createElement("div");
+      tools.className = "capability-tool-list";
+      server.tools.slice(0, 12).forEach((tool) => {
+        const chip = document.createElement("span");
+        chip.textContent = tool.title || tool.name;
+        tools.append(chip);
+      });
+      if (server.tools.length > 12) {
+        const more = document.createElement("span");
+        more.textContent = `+${server.tools.length - 12}`;
+        tools.append(more);
+      }
+      card.append(tools);
+    }
+    const actions = document.createElement("div");
+    actions.className = "capability-card-actions";
+    const refresh = document.createElement("button");
+    refresh.type = "button";
+    refresh.textContent = tr("capabilities.refresh");
+    refresh.disabled = !server.enabled;
+    refresh.addEventListener("click", () => refreshMcpServer(server, refresh));
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.textContent = tr("apis.edit");
+    edit.addEventListener("click", () => openMcpDialog(server));
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = tr("apis.delete");
+    remove.addEventListener("click", () => deleteMcpServer(server));
+    actions.append(refresh, edit, remove);
+    card.append(actions);
+    list.append(card);
+  });
+}
+
+function renderCapabilities() {
+  renderSkills();
+  renderMcpServers();
+  const count = capabilityState.skills.length + capabilityState.servers.length;
+  document.querySelectorAll(".nav-capability-count").forEach((element) => {
+    element.textContent = String(count);
+  });
+}
+
+async function loadCapabilities(force = false) {
+  if (capabilityState.loaded && !force) return;
+  if (capabilityState.promise) return capabilityState.promise;
+  capabilityState.loading = true;
+  capabilityState.promise = (async () => {
+    try {
+      const [skills, servers] = await Promise.all([
+        dashboardRequest("/api/skills"),
+        dashboardRequest("/api/mcp/servers"),
+      ]);
+      capabilityState.skills = Array.isArray(skills.data) ? skills.data : [];
+      capabilityState.servers = Array.isArray(servers.data) ? servers.data : [];
+      capabilityState.loaded = true;
+      renderCapabilities();
+    } finally {
+      capabilityState.loading = false;
+      capabilityState.promise = null;
+    }
+  })();
+  return capabilityState.promise;
+}
+
+function openSkillDialog(skill = null) {
+  if (!skillDialog) return;
+  skillId.value = skill ? String(skill.id) : "";
+  skillName.value = skill?.name || "";
+  skillDescription.value = skill?.description || "";
+  skillInstructions.value = skill?.instructions || "";
+  skillEnabled.checked = skill?.enabled !== false;
+  setText(
+    "#skill-dialog-title",
+    tr(skill ? "skillDialog.edit" : "skillDialog.new"),
+  );
+  setCapabilityFeedback(skillFeedback);
+  skillDialog.showModal();
+  window.setTimeout(() => skillName.focus(), 50);
+}
+
+function closeSkillDialog() {
+  skillForm?.reset();
+  skillDialog?.close();
+}
+
+document.querySelector("#create-skill")?.addEventListener("click", () => {
+  openSkillDialog();
+});
+document.querySelectorAll("[data-skill-dialog-close]").forEach((button) => {
+  button.addEventListener("click", closeSkillDialog);
+});
+skillDialog?.addEventListener("click", (event) => {
+  if (event.target === skillDialog) closeSkillDialog();
+});
+
+skillForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = skillId.value;
+  skillSave.disabled = true;
+  setCapabilityFeedback(skillFeedback, tr("common.saving"));
+  try {
+    await dashboardRequest(
+      id ? `/api/skills/${encodeURIComponent(id)}` : "/api/skills",
+      {
+        method: id ? "PATCH" : "POST",
+        body: JSON.stringify({
+          name: skillName.value.trim(),
+          description: skillDescription.value.trim(),
+          instructions: skillInstructions.value.trim(),
+          enabled: skillEnabled.checked,
+        }),
+      },
+    );
+    closeSkillDialog();
+    await Promise.all([loadCapabilities(true), loadManagedApis()]);
+  } catch (error) {
+    setCapabilityFeedback(skillFeedback, error.message, "error");
+  } finally {
+    skillSave.disabled = false;
+  }
+});
+
+async function deleteSkill(skill) {
+  if (!window.confirm(tr("skillDialog.deleteConfirm", { name: skill.name }))) return;
+  try {
+    await dashboardRequest(`/api/skills/${encodeURIComponent(skill.id)}`, {
+      method: "DELETE",
+    });
+    await Promise.all([loadCapabilities(true), loadManagedApis()]);
+  } catch (error) {
+    window.alert(error.message);
+  }
+}
+
+function syncMcpTokenField(existing = null) {
+  const bearer = mcpAuthType?.value === "bearer";
+  if (mcpTokenField) mcpTokenField.hidden = !bearer;
+  if (!bearer && mcpToken) mcpToken.value = "";
+  if (mcpToken) {
+    mcpToken.required = bearer && !(existing?.has_credentials);
+  }
+  if (mcpTokenHint) {
+    mcpTokenHint.textContent = existing?.has_credentials && bearer
+      ? tr("mcpDialog.keepToken")
+      : tr("mcpDialog.tokenHint");
+  }
+}
+
+function openMcpDialog(server = null) {
+  if (!mcpDialog) return;
+  mcpId.value = server ? String(server.id) : "";
+  mcpName.value = server?.name || "";
+  mcpUrl.value = server?.url || "";
+  mcpAuthType.value = server?.auth_type || "none";
+  mcpToken.value = "";
+  mcpEnabled.checked = server?.enabled !== false;
+  mcpDialog.dataset.hasCredentials = String(server?.has_credentials === true);
+  setText(
+    "#mcp-dialog-title",
+    tr(server ? "mcpDialog.edit" : "mcpDialog.new"),
+  );
+  setCapabilityFeedback(mcpFeedback);
+  syncMcpTokenField(server);
+  mcpDialog.showModal();
+  window.setTimeout(() => mcpName.focus(), 50);
+}
+
+function closeMcpDialog() {
+  mcpForm?.reset();
+  mcpDialog?.close();
+}
+
+mcpAuthType?.addEventListener("change", () => {
+  syncMcpTokenField({
+    has_credentials: mcpDialog?.dataset.hasCredentials === "true",
+  });
+});
+document.querySelector("#create-mcp-server")?.addEventListener("click", () => {
+  openMcpDialog();
+});
+document.querySelectorAll("[data-mcp-dialog-close]").forEach((button) => {
+  button.addEventListener("click", closeMcpDialog);
+});
+mcpDialog?.addEventListener("click", (event) => {
+  if (event.target === mcpDialog) closeMcpDialog();
+});
+
+mcpForm?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const id = mcpId.value;
+  mcpSave.disabled = true;
+  setCapabilityFeedback(mcpFeedback, tr("mcpDialog.verifying"));
+  try {
+    await dashboardRequest(
+      id
+        ? `/api/mcp/servers/${encodeURIComponent(id)}`
+        : "/api/mcp/servers",
+      {
+        method: id ? "PATCH" : "POST",
+        body: JSON.stringify({
+          name: mcpName.value.trim(),
+          url: mcpUrl.value.trim(),
+          auth_type: mcpAuthType.value,
+          bearer_token: mcpToken.value.trim() || null,
+          enabled: mcpEnabled.checked,
+        }),
+      },
+    );
+    closeMcpDialog();
+    await Promise.all([loadCapabilities(true), loadManagedApis()]);
+  } catch (error) {
+    setCapabilityFeedback(mcpFeedback, error.message, "error");
+  } finally {
+    mcpSave.disabled = false;
+  }
+});
+
+async function refreshMcpServer(server, button) {
+  button.disabled = true;
+  button.textContent = tr("capabilities.refreshing");
+  try {
+    await dashboardRequest(
+      `/api/mcp/servers/${encodeURIComponent(server.id)}/refresh`,
+      { method: "POST" },
+    );
+    await Promise.all([loadCapabilities(true), loadManagedApis()]);
+  } catch (error) {
+    window.alert(error.message);
+    button.disabled = false;
+    button.textContent = tr("capabilities.refresh");
+  }
+}
+
+async function deleteMcpServer(server) {
+  if (!window.confirm(tr("mcpDialog.deleteConfirm", { name: server.name }))) return;
+  try {
+    await dashboardRequest(
+      `/api/mcp/servers/${encodeURIComponent(server.id)}`,
+      { method: "DELETE" },
+    );
+    await Promise.all([loadCapabilities(true), loadManagedApis()]);
   } catch (error) {
     window.alert(error.message);
   }
@@ -1815,6 +2590,7 @@ window.addEventListener("omniproxy:languagechange", () => {
   renderProviderFilters();
   renderModelCatalog();
   renderManagedApis();
+  renderCapabilities();
   if (usageState.data) renderUsage(usageState.data);
   if (providerQuotaState.data) {
     renderProviderQuotas(providerQuotaState.data);
@@ -1831,6 +2607,10 @@ window.addEventListener("omniproxy:languagechange", () => {
       );
     }
     renderApiRoutingPreview();
+    const existing = managedApis.find(
+      (item) => String(item.id) === apiConfigId?.value,
+    );
+    renderApiCapabilityOptions(existing || null);
   }
 });
 
@@ -2047,7 +2827,8 @@ function buildRoleElements(prefix) {
 
 function availableBuildProviders() {
   return catalogState.providers.filter(
-    (provider) => provider.connected && provider.models.length > 0,
+    (provider) => provider.connected && provider.models.length > 0
+      && ["ollama", "codex", "gemini", "claude"].includes(provider.id),
   );
 }
 
@@ -3840,10 +4621,17 @@ const baseUrl = document.querySelector("#gateway-base-url");
 if (baseUrl) baseUrl.textContent = MANAGED_API_BASE_URL;
 loadModelCatalog();
 loadManagedApis();
+loadCapabilities();
 loadUsage();
 
 const initialView = window.location.hash.slice(1);
-const publicViews = ["connections", "models", "apis", "usage"];
+const publicViews = [
+  "connections",
+  "models",
+  "apis",
+  "capabilities",
+  "usage",
+];
 if (BUILD_ENABLED) publicViews.push("build");
 if (publicViews.includes(initialView)) {
   switchView(initialView);

@@ -1,0 +1,114 @@
+{
+  "date": "2026-11-06",
+  "scope": "discovered_clients_of_gateway192.0.2.10_only",
+  "completed": true,
+  "api_base_url": "https://192.0.2.10/v1",
+  "gateway54_original_credentials_status_limits_preserved": true,
+  "clients": {
+    "WikiNick": {
+      "private_configuration_updated": true,
+      "explicit_CA": true,
+      "unit_tests": 21,
+      "real_models_and_completion": true,
+      "service_restarted": true
+    },
+    "Mappe": {
+      "transport": "existing_WikiNick_adapter",
+      "private_key_preserved": true,
+      "rust_tests": 70,
+      "web_tests": 23,
+      "node_tests": 16,
+      "release_build": true,
+      "live_rust_wiki_AI_round_trip": true,
+      "mappe_container_unchanged": true
+    },
+    "QNick": {
+      "profiles_updated": 10,
+      "runtime_configuration_updated": true,
+      "unit_tests": 129,
+      "subtests": 14,
+      "ROS2_adapter_tests": 2,
+      "dataset_service_restarted_only_when_idle": true,
+      "MCP_service_and_physical_behavior_unchanged": true,
+      "no_hardware_motion_commands_sent": true,
+      "local_direct_HF_and_Ollama_backends_unchanged": true,
+      "ROS2_optional_compose_updated_and_validated": true,
+      "preexisting_firmware_assertion_updated_to_existing_source0.6.9_without_firmware_change": true,
+      "authenticated_profiles": 9,
+      "disabled_profiles_rejected": 1,
+      "vision_inference_successful_profiles": 9
+    },
+    "n8n": {
+      "migration": {
+        "credentials_updated": 2,
+        "credential_ids_and_secret_values_preserved": true,
+        "ownership_preserved": true,
+        "existing_workflows_preserved": true,
+        "url": "https://192.0.2.10/v1",
+        "certificate_read_only": true
+      },
+      "same_container_image": true,
+      "inference": [
+        {
+          "credential_index": 0,
+          "intentionally_disabled": true,
+          "HTTP_status": 401
+        },
+        {
+          "credential_index": 1,
+          "models": true,
+          "chat": true,
+          "SSE": true,
+          "TLS_verification": true
+        }
+      ],
+      "workflow_engine": {
+        "real_workflow_engine": true,
+        "temporary_workflow_removed": true,
+        "workflow_success": true,
+        "existing_active_credential_used": true,
+        "HTTPS_verified": true
+      },
+      "original_workflows_and_ownership_identical_to_backup": true,
+      "negative_TLS_without_dedicated_CA_rejected": true,
+      "decrypted_credential_exports_not_written_to_disk": true
+    }
+  },
+  "intentionally_disabled": [
+    {
+      "client": "robotics profile",
+      "status": "previously disabled; kept disabled",
+      "expected_HTTP": 401
+    },
+    {
+      "client": "old workflow credential",
+      "status": "previously disabled; kept disabled",
+      "expected_HTTP": 401
+    }
+  ],
+  "inventory_exclusions": [
+    {
+      "client": "separate gateway",
+      "reason": "separate gateway explicitly excluded by user; no changes made"
+    },
+    {
+      "client": "Home Assistant",
+      "reason": "no configured gateway references found; left unchanged"
+    },
+    {
+      "client": "Open WebUI",
+      "reason": "no gateway configured endpoints found"
+    },
+    {
+      "client": "CodeNexus",
+      "reason": "no gateway references in current source/environment/configuration DB"
+    }
+  ],
+  "limits": [
+    "No visual browser verification or Windows certificate installation",
+    "TLS and transport/inference tests do not certify physical robot operation or prediction quality",
+    "Historical experiment snapshots and direct local model services were preserved",
+    "Disabled credentials remain disabled; no keys or tokens regenerated"
+  ],
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

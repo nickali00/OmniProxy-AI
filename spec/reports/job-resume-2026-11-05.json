@@ -1,0 +1,13 @@
+{
+  "scope": "three_source_gateway_lifecycles_temporary_workspace",
+  "model": "gpt-5.6-sol",
+  "recipe": true,
+  "persistent_approval": true,
+  "restart_and_explicit_resume": true,
+  "old_approval_refused": true,
+  "single_apply": true,
+  "events": true,
+  "history_deletion_keeps_idempotency_tombstone": true,
+  "passed": true,
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

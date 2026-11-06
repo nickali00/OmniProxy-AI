@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
+import { proxyToolArguments } from "./tool-policy.mjs";
 import fs from "node:fs/promises";
 import http from "node:http";
 import readline from "node:readline";
+import { completeWithClientTools, hasTextualToolDefinitions } from "./client-tools.mjs";
 import {
   parseChatRequest,
   readJsonBody,
@@ -27,6 +29,10 @@ let initialized = false;
 let activeAttempt = null;
 let activeExecutions = 0;
 const pending = new Map();
+const cliVersion = runProcess(codexBinary, ["--version"], {
+  input: "", cwd: "/workspace", env: process.env, timeoutMs: 10_000,
+}).then((result) => result.stdout.trim().match(/\b\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?\b/u)?.[0] || null)
+  .catch(() => null);
 
 const appServer = spawn(codexBinary, ["app-server", "--stdio"], {
   env: { ...process.env, RUST_LOG: "error" },
@@ -368,7 +374,7 @@ async function modelCatalog() {
     });
 }
 
-async function completeChat(body) {
+async function completeChat(body, signal) {
   const status = await accountStatus();
   if (!status.connected) {
     return {
@@ -396,7 +402,8 @@ async function completeChat(body) {
   );
   let chat;
   try {
-    chat = parseChatRequest(body, new Set(modelMap.keys()), allEfforts);
+    chat = parseChatRequest(body, new Set(modelMap.keys()), allEfforts,
+      { maxMessages: 1000, maxCharacters: 2_000_000 });
   } catch {
     return {
       statusCode: 400,
@@ -417,10 +424,34 @@ async function completeChat(body) {
     };
   }
 
+  const textualTools = hasTextualToolDefinitions(body.messages);
+  const clientToolMode = Array.isArray(body.tools) || textualTools ||
+    body.messages.some((message) => message?.role === "tool" || message?.tool_calls);
+  if (clientToolMode && chat.messages.some((message) => message.images.length > 0)) {
+    return { statusCode: 400, body: { error: "client_tools_images_not_supported",
+      message: "Il percorso strumenti Codex non supporta ancora immagini nella stessa richiesta." } };
+  }
+  if (clientToolMode) {
+    activeExecutions += 1;
+    try {
+      const result = await completeWithClientTools({ ...body, tools: body.tools || [] },
+        { codexBinary, timeoutMs: executionTimeoutMs, signal });
+      return { statusCode: 200, body: { provider: "codex", model: chat.model, ...result } };
+    } catch (error) {
+      return { statusCode: error.message === "invalid_chat_request" ? 400 : 502,
+        body: { error: error.message === "invalid_chat_request" ? "invalid_chat_request" : "codex_execution_failed",
+          message: "Codex non ha completato il turno con strumenti del client." } };
+    } finally {
+      activeExecutions -= 1;
+    }
+  }
+
   const outputPath = `/tmp/omni-codex-${crypto.randomUUID()}.txt`;
+  let imageDirectory = null;
   const reasoningToml = JSON.stringify(chat.reasoning);
   const args = [
     "exec",
+    ...proxyToolArguments(),
     "--skip-git-repo-check",
     "--ephemeral",
     "--ignore-user-config",
@@ -435,11 +466,29 @@ async function completeChat(body) {
     "/workspace",
     "--output-last-message",
     outputPath,
-    "-",
   ];
 
   activeExecutions += 1;
   try {
+    const images = chat.messages.flatMap((message) => message.images || []);
+    if (images.length > 0) {
+      imageDirectory = await fs.mkdtemp("/tmp/omni-codex-images-");
+      const extensions = {
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/webp": "webp",
+      };
+      for (const [index, image] of images.entries()) {
+        const extension = extensions[image.mimeType];
+        const imagePath = `${imageDirectory}/image-${index + 1}.${extension}`;
+        await fs.writeFile(imagePath, Buffer.from(image.data, "base64"), {
+          mode: 0o600,
+        });
+        args.push("--image", imagePath);
+      }
+    }
+    args.push("-");
+
     const result = await runProcess(codexBinary, args, {
       input: renderChatPrompt(chat.messages),
       cwd: "/workspace",
@@ -472,6 +521,11 @@ async function completeChat(body) {
   } finally {
     activeExecutions -= 1;
     await fs.unlink(outputPath).catch(() => {});
+    if (imageDirectory) {
+      await fs
+        .rm(imageDirectory, { recursive: true, force: true })
+        .catch(() => {});
+    }
   }
 }
 
@@ -494,6 +548,7 @@ async function route(request, response) {
     }
     jsonResponse(response, 200, {
       provider: "codex",
+      cli_version: await cliVersion,
       ...status,
       attempt: publicAttempt(activeAttempt),
     });
@@ -518,7 +573,7 @@ async function route(request, response) {
   if (request.method === "POST" && url.pathname === "/v1/chat") {
     let body;
     try {
-      body = await readJsonBody(request);
+      body = await readJsonBody(request, 32 * 1024 * 1024);
     } catch {
       jsonResponse(response, 400, {
         error: "invalid_chat_request",
@@ -526,8 +581,10 @@ async function route(request, response) {
       });
       return;
     }
-    const result = await completeChat(body);
-    jsonResponse(response, result.statusCode, result.body);
+    const controller = new AbortController();
+    response.on("close", () => controller.abort());
+    const result = await completeChat(body, controller.signal);
+    if (!response.destroyed) jsonResponse(response, result.statusCode, result.body);
     return;
   }
 

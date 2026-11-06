@@ -1,14 +1,21 @@
 # OmniProxy AI
 
+[Project wiki](docs/wiki/README.md)
+
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 
 > **Already paying monthly for an AI account? OmniProxy brings that access to
 > your applications and workflows through one local OpenAI-compatible API,
 > while you monitor requests, tokens, latency and quotas.**
 
-**Status:** Phase 1 public preview · **Experimental Builder:** disabled by
-default · **Hosts:** Linux / Windows (WSL2) / macOS · **Dashboard:** English /
+**Status:** 1.0.0-rc.3 candidate · **Experimental Builder:** disabled by
+default · **Verified:** Linux; Windows/WSL2 and macOS pending · **Dashboard:** English /
 Italian / Spanish / French
+
+[API contract 1 and OpenAPI](spec/README.md) ·
+[HTTP and SDK conformance suite](conformance/README.md) ·
+[Compatibility and exclusions](spec/compatibility.md) ·
+[Changelog and upgrades](CHANGELOG.md)
 
 [Italian documentation](README.md) ·
 [Demo video guide](docs/DEMO_VIDEO.md) ·
@@ -72,6 +79,11 @@ For clients outside the host, prefer a **private VPN**. Alternatively, use an
 HTTPS reverse proxy with administrative authentication, request limits, and
 an allowlist that exposes `/v1/*` only. Keep the dashboard and administrative
 routes private. **Never expose port `8000` directly to the Internet.**
+
+For LAN access use the [HTTPS profile with operator login](docs/wiki/sicurezza-https.md).
+That profile requires the effective HTTPS base URL and instance CA for every
+client, preserving existing keys while refusing HTTP API requests with 426.
+The HTTP examples above describe only the default local configuration.
 
 ## What it is for
 
@@ -217,8 +229,73 @@ curl http://127.0.0.1:8000/v1/chat/completions \
   }'
 ```
 
+### Inline images (`image_url`)
+
+Managed keys have independent input, output and total-context token limits,
+each with an explicit no-gateway-limit option. Daily, weekly, monthly or
+unlimited budgets and optional history summaries are available; see
+[token policies](docs/wiki/limiti-token.md).
+[File attachments](docs/wiki/allegati-multimodali.md) also support PDF, Office,
+text, sampled video frames and configurable audio transcription.
+
+Managed Ollama and Codex APIs accept multimodal Chat Completions content. The
+image must be embedded as a JPEG, PNG, or WebP data URL. OmniProxy does not
+fetch HTTP/HTTPS image URLs, preventing server-side requests to arbitrary
+destinations.
+
+```json
+{
+  "model": "your-managed-model-slug",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/jpeg;base64,BASE64_JPEG_DATA"
+          }
+        },
+        {"type": "text", "text": "Describe what you see"}
+      ]
+    }
+  ]
+}
+```
+
+Each request may contain up to 8 images, at most 4 MiB each and 8 MiB in total.
+Codex broker image files exist only for the inference and are deleted
+immediately afterwards. Antigravity and Claude brokers explicitly reject image
+requests until they gain a native visual transport.
+
 For an n8n container attached to `omni-proxy-ai-network`, use
 `http://gateway:8000/v1` instead of the host URL.
+
+## Skills and MCP servers
+
+The **Skills & MCP** page can extend each managed API with reusable Markdown
+instructions and tools discovered from MCP Streamable HTTP servers. Skills are
+text-only system instructions; OmniProxy never executes them as code.
+
+Connecting an MCP server does not grant access to every tool. The administrator
+must explicitly allow individual server/tool pairs on each local API profile.
+Bearer tokens are encrypted in the existing vault, public endpoints require
+HTTPS, and the tool audit does not store arguments or results. See the
+[Skills and MCP guide](docs/SKILLS_MCP.md) for setup and security boundaries.
+
+## Home Assistant
+
+The repository includes a custom Home Assistant integration that adds an
+OmniProxy AI conversation agent to **Assist**. Create a dedicated managed API,
+install this repository through HACS as an **Integration**, then enter the Base
+URL and its `sk-local-...` key. Provider, model and reasoning remain pinned by
+the gateway profile and are detected automatically.
+
+Use `http://127.0.0.1:8000/v1` when Home Assistant runs on the same host with
+host networking, or `http://gateway:8000/v1` when it joins the
+`omni-proxy-ai-network` Docker network. See the
+[complete Home Assistant guide](docs/HOME_ASSISTANT.md) for HACS, manual and
+LAN setup instructions.
 
 ## Demo video
 
@@ -271,7 +348,9 @@ python3 -m venv .venv
 
 - SQLite targets a single gateway replica.
 - `tiktoken` accounting may differ from a local model's native tokenizer.
-- Tool calls, multimodal inputs and `/v1/responses` are not implemented yet.
+- Inline `image_url` is supported by Ollama and Codex. Tool calls, audio,
+  images in the Antigravity/Claude brokers, and `/v1/responses` are not
+  implemented yet.
 - Cloud availability depends on account access and the official client.
 - Cloud SSE output is currently emitted after the headless completion.
 - The legacy `reasoning-avanzato` alias still uses a mock provider.

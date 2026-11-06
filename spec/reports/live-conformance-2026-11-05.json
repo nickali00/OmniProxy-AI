@@ -1,0 +1,79 @@
+{
+  "scope": "running_candidate_gateway_temporary_profiles_real_ollama",
+  "release": "1.0.0-rc.1",
+  "contract_version": "1",
+  "passed": true,
+  "core_checks": [
+    {
+      "name": "authentication",
+      "passed": true,
+      "duration_ms": 0.51
+    },
+    {
+      "name": "discovery_limits_models",
+      "passed": true,
+      "duration_ms": 83.48
+    },
+    {
+      "name": "redacted_validation",
+      "passed": true,
+      "duration_ms": 18.42
+    },
+    {
+      "name": "chat_text_usage",
+      "passed": true,
+      "duration_ms": 522.58
+    },
+    {
+      "name": "chat_sse_usage",
+      "passed": true,
+      "duration_ms": 348.13
+    },
+    {
+      "name": "responses_storage_continuation_sse_ownership",
+      "passed": true,
+      "duration_ms": 1346.15
+    },
+    {
+      "name": "files_unicode_citations_ownership_deletion",
+      "passed": true,
+      "duration_ms": 1381.42
+    }
+  ],
+  "sdk_checks": {
+    "contract_version": "1",
+    "suite": "external-sdks",
+    "passed": true,
+    "integrations": [
+      {
+        "integration": "openai",
+        "version": "3.46.0",
+        "checks": [
+          "chat",
+          "responses_store_retrieve_delete",
+          "responses_sse"
+        ],
+        "passed": true
+      },
+      {
+        "integration": "anthropic",
+        "version": "2.5.0",
+        "checks": [
+          "messages",
+          "messages_sse"
+        ],
+        "passed": true
+      },
+      {
+        "integration": "google-genai",
+        "version": "2.34.0",
+        "checks": [
+          "generate_content",
+          "generate_content_sse"
+        ],
+        "passed": true
+      }
+    ]
+  },
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

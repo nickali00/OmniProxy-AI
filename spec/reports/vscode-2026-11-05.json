@@ -1,0 +1,11 @@
+{
+  "passed": true,
+  "extension": "2.0.0",
+  "vscode": "1.109.3",
+  "source": "actual_extension_host",
+  "chat_stream": true,
+  "tool_call": true,
+  "client_file_read": true,
+  "final_answer": true,
+  "publication_note": "Public summary; private topology, credential metadata, certificate fingerprints and backup locations omitted. Documentation address 192.0.2.10 is not the deployed address."
+}

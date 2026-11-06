@@ -6,6 +6,7 @@ from starlette.responses import JSONResponse, Response
 
 from app.database import authenticate_api_key
 from app.errors import openai_error_body
+from app.identity import application_key_allowed
 
 
 logger = logging.getLogger(__name__)
@@ -24,16 +25,26 @@ class ApiKeyAuthMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: RequestResponseEndpoint,
     ) -> Response:
-        if not request.url.path.startswith("/v1/") or request.method == "OPTIONS":
+        if not request.url.path.startswith(("/v1/", "/v1beta/models/")) or request.method == "OPTIONS":
             return await call_next(request)
 
         authorization = request.headers.get("Authorization", "")
+        if not authorization and request.url.path == "/v1/messages":
+            native_key = request.headers.get("x-api-key", "")
+            if native_key:
+                authorization = f"Bearer {native_key}"
+        if not authorization and request.url.path.startswith(("/v1beta/models/", "/v1/models/")):
+            native_key = request.headers.get("x-goog-api-key", "")
+            if native_key:
+                authorization = f"Bearer {native_key}"
         scheme, separator, token = authorization.partition(" ")
         if not separator or scheme.lower() != "bearer" or not token.strip():
             return self._unauthorized("Missing or malformed Bearer API key.")
 
         try:
             api_key = await authenticate_api_key(token.strip())
+            if api_key is not None and not await application_key_allowed(api_key.id):
+                api_key = None
         except Exception:
             logger.exception("API key database lookup failed")
             return JSONResponse(
