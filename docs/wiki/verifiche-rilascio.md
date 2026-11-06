@@ -91,3 +91,7 @@ e limiti, omettendo percorsi personali, topologia, impronte e metadati delle
 sessioni reali. I dati completi restano soltanto nel runbook privato.
 Eseguire la suite completa, controlli Node, schema OpenAPI e Compose prima
 del push. Verificare infine che il commit remoto coincida con quello locale.
+
+La CI installa anche `poppler-utils`, Tesseract (eng/ita), `ffmpeg` ed
+`espeak-ng`, come l'immagine gateway: i test multimediali eseguono veri
+estrattori e sintetizzatori. Installare soltanto i requisiti Python non basta.
