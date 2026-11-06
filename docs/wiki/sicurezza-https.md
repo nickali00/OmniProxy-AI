@@ -145,6 +145,13 @@ assenza di vulnerabilità. Vedere i report in `spec/reports/`.
 
 ## Rischi residui da mantenere visibili
 
+Le dipendenze opzionali immagini hanno inoltre cinque avvisi GitHub su
+`transformers==4.57.6` (quattro high, uno medium), separati dal runtime core
+sottoposto a pip-audit. Sono escluse dalla build predefinita e assenti dal
+gateway attivo verificato. Il caricamento locale/safetensors non costituisce
+una prova formale di irraggiungibilità. Un aggiornamento richiede test dedicati.
+Avvisi: [GHSA-x9r9-c232-4q39](https://github.com/advisories/GHSA-x9r9-c232-4q39), [GHSA-xrqw-3rrv-vx5w](https://github.com/advisories/GHSA-xrqw-3rrv-vx5w), [GHSA-fgcw-684q-jj6r](https://github.com/advisories/GHSA-fgcw-684q-jj6r), [GHSA-29pf-2h5f-8g72](https://github.com/advisories/GHSA-29pf-2h5f-8g72), [GHSA-69w3-r845-3855](https://github.com/advisories/GHSA-69w3-r845-3855).
+
 - I conteggi di Trivy includono librerie non esposte, codice vendorizzato e
   differenze tra severità NVD e classificazione Debian. Nessun conteggio va
   presentato automaticamente come numero di exploit riusciti o come zero rischi.

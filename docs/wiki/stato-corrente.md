@@ -1,6 +1,11 @@
 # Stato corrente
 
-## Candidato pubblico 1.0.0-rc.3 — 6 novembre 2026
+## Candidato pubblico 1.0.0-rc.4 — 6 novembre 2026
+
+Il candidato rc.4 limita anche i thread di FFmpeg nel worker vocale, senza
+allentare memoria o timeout. La CI installa i tool multimediali su Ubuntu
+24.04; la sintesi nativa su 26.04 non è qualificata. Nessuna migrazione DB
+o modifica delle credenziali è richiesta.
 
 Il candidato include proxy OpenAI-compatible, sottoinsiemi Responses,
 Anthropic e Gemini, modelli locali e account cloud supportati, tool client,
@@ -49,7 +54,8 @@ browser o installazione CA Windows è stata eseguita in questa sessione.
 
 ## Pubblicazione e adozione
 
-[Gate di pubblicazione](../../spec/reports/publication-2026-11-06.json):
+[Gate rc.4](../../spec/reports/publication-rc4-2026-11-06.json), dopo il
+[gate iniziale di pubblicazione](../../spec/reports/publication-2026-11-06.json):
 283 Python anche su copia pubblica senza file privati, 16 Node, OpenAPI e
 Compose; scanner di segreti e confronto con credenziali locali senza riscontri.
 
@@ -58,3 +64,13 @@ esempi e matrice. La versione resta candidata, non stabile. Revisione e
 adozione indipendenti e misure d'uso richiedono evidenze esterne; non si
 dichiara che OmniProxy sia già uno standard adottato.
 [Roadmap](roadmap.md), [verifiche e rilascio](verifiche-rilascio.md).
+
+## Dipendenze opzionali immagini
+
+GitHub segnala cinque avvisi (quattro high, uno medium) su
+`transformers==4.57.6` in `requirements-images.txt`: non sono risolti
+dall'audit dei soli requisiti core. La dipendenza non è presente nel gateway
+attivo verificato ed è esclusa dalla build predefinita. Il percorso locale
+usa file preinstallati e safetensors; ciò non certifica l'irraggiungibilità
+di tutti gli avvisi. Un aggiornamento richiede verifiche dedicate del runtime
+immagini. Gli avvisi sono visibili nel pannello Dependabot del repository.

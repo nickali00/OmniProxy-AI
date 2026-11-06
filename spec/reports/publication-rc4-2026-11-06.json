@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-06",
+  "release": "1.0.0-rc.4",
+  "scope": "pre-push bounded speech-worker correction and publication verification",
+  "contract_version": "1",
+  "database_migration_required": false,
+  "credential_changes": false,
+  "speech_worker": {
+    "decoder_threads": 2,
+    "encoder_threads": 2,
+    "filter_threads": 1,
+    "memory_cpu_timeout_limits_unchanged": true,
+    "protocol_allowlist_unchanged": true,
+    "real_format_tests": 9
+  },
+  "tests": {
+    "python_full": 283,
+    "node": 16,
+    "openapi_matches": true,
+    "syntax_checks": true,
+    "compose_valid": true
+  },
+  "ci_environment": {
+    "runner": "ubuntu-24.04",
+    "native_pdf_ocr_audio_video_tools_installed": true,
+    "ubuntu_26_04_native_speech": "unqualified; failures observed before the thread-limit correction, not recertified"
+  },
+  "publication_privacy": {
+    "secret_scanner": "gitleaks 8.30.1",
+    "source_and_git_history_no_secrets_detected": true,
+    "exact_local_credential_comparison_no_matches": true,
+    "private_configuration_certificates_databases_backups_and_host_instructions_excluded": true,
+    "public_reports_minimized": true,
+    "private_runbook_preserved_locally": true,
+    "commit_identity": "GitHub noreply"
+  },
+  "optional_image_advisories": [
+    {
+      "fixed": null,
+      "ghsa": "GHSA-x9r9-c232-4q39",
+      "manifest": "requirements-images.txt",
+      "package": "transformers",
+      "severity": "high",
+      "summary": "Hugging Face Transformers downloads custom generation code before trust consent"
+    },
+    {
+      "fixed": "5.10.0",
+      "ghsa": "GHSA-xrqw-3rrv-vx5w",
+      "manifest": "requirements-images.txt",
+      "package": "transformers",
+      "severity": "high",
+      "summary": "Transformers save_pretrained path traversal allows arbitrary file writes through chat template names"
+    },
+    {
+      "fixed": "5.5.0",
+      "ghsa": "GHSA-fgcw-684q-jj6r",
+      "manifest": "requirements-images.txt",
+      "package": "transformers",
+      "severity": "high",
+      "summary": "huggingface/transformers: Arbitrary Code Execution During Model Initialization in the LightGlue Model Loading Path"
+    },
+    {
+      "fixed": "5.3.0",
+      "ghsa": "GHSA-29pf-2h5f-8g72",
+      "manifest": "requirements-images.txt",
+      "package": "transformers",
+      "severity": "high",
+      "summary": "HuggingFace transformers vulnerable to remote code execution"
+    },
+    {
+      "fixed": "5.0.0rc3",
+      "ghsa": "GHSA-69w3-r845-3855",
+      "manifest": "requirements-images.txt",
+      "package": "transformers",
+      "severity": "medium",
+      "summary": "HuggingFace Transformers allows for arbitrary code execution in the `Trainer` class"
+    }
+  ],
+  "optional_transformers_absent_from_verified_running_gateway": true,
+  "remote_ci_evidence": "Check the GitHub Actions run for the final commit; this report records checks before push.",
+  "deployment": "Source publication only; active gateway image and private client configuration preserved."
+}

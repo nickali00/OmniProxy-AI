@@ -22,7 +22,7 @@ maintainer availability.
 
 ## Supported version
 
-The current candidate is 1.0.0-rc.3. Stable support and deprecation policy is
+The current candidate is 1.0.0-rc.4. Stable support and deprecation policy is
 defined in [spec/versioning.md](spec/versioning.md); candidate status does
 not imply an independent security certification.
 

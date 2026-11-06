@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.0.0-rc.4 — 2026-11-06
+
+Bounds speech FFmpeg decoder/encoder and filter thread counts, matching the
+other media workers without increasing memory or CPU limits. Publication CI
+now installs the native media tools and pins the verified Ubuntu 24.04
+toolchain. Ubuntu 26.04 native speech remains unqualified. Public contract
+remains 1; no database migration or credential change is required.
+
+GitHub additionally reports advisories in optional `transformers==4.57.6`
+local-image dependencies. They are not installed in the default gateway;
+these advisories are not treated as resolved by the core runtime audit.
+
 ## 1.0.0-rc.3 — 2026-11-06
 
 Publishes the implemented roadmap, public contract, conformance suite and

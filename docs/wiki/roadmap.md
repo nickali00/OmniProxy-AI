@@ -214,7 +214,7 @@ Gate: 250 Python, 14 Node; immagine read-only, backup e doppia migrazione
 con hash delle 36 tabelle preesistenti superati. Report in `spec/reports/`.
 
 **Pubblicazione candidata:** codice, specifica, suite ed evidenze minimizzate
-sono inclusi nel candidato pubblico `1.0.0-rc.3`. Restano aperte
+sono inclusi nel candidato pubblico, aggiornato a `1.0.0-rc.4`. Restano aperte
 revisione/adozione indipendente, misure di utilizzo e promozione a stabile. Le tre integrazioni SDK sono esercitate dal progetto,
 non equivalgono a due deployment indipendenti di terzi. La parte di codice
 prevista è conclusa nel candidato; il criterio di adozione della roadmap

@@ -6,7 +6,7 @@
 > applicazioni e nei tuoi workflow tramite un'unica API locale
 > OpenAI-compatible, mentre tu controlli richieste, token, latenza e quote.**
 
-**Stato:** 1.0.0-rc.3, candidata · **Builder sperimentale:** disabilitato di
+**Stato:** 1.0.0-rc.4, candidata · **Builder sperimentale:** disabilitato di
 default · **Verificato:** Linux; Windows/WSL2 e macOS da verificare · **Dashboard:** EN / IT /
 ES / FR
 

@@ -1,6 +1,6 @@
 # Versioning and support policy
 
-Contract major (`1`) is independent of product SemVer (`1.0.0-rc.3`).
+Contract major (`1`) is independent of product SemVer (`1.0.0-rc.4`).
 Candidate releases are for evaluation: no stable1.0 support window begins
 before a dated stable release and its tested migration/compatibility report.
 

@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     app_name: str = "OmniProxy AI Gateway"
-    app_version: str = "1.0.0-rc.3"
+    app_version: str = "1.0.0-rc.4"
     log_level: str = "INFO"
     build_enabled: bool = False
     job_workspace_roots: str = ""

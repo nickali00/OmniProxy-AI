@@ -1,6 +1,6 @@
 # OmniProxy public contract 1
 
-Release: **1.0.0-rc.3**, candidate, 2026-11-06. This document and the
+Release: **1.0.0-rc.4**, candidate, 2026-11-06. This document and the
 [OpenAPI artifact](openapi.json) describe the supported wire contract. They
 can be used without importing or reading the implementation. This is an
 OmniProxy contract, not a certification of complete vendor API equivalence

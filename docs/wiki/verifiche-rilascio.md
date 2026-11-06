@@ -75,7 +75,7 @@ e colonne preesistenti, oltre a integrità/FK. Montare il volume originale
 in sola lettura nel container di prova. Il registro versioni cambia
 intenzionalmente e non viene confrontato come contenuto applicativo.
 
-Il numero prodotto `1.0.0-rc.3` indica una release candidata, con
+Il numero prodotto `1.0.0-rc.4` indica una release candidata, con
 [politica di versione/supporto](../../spec/versioning.md) e
 [processo RFC](../../spec/proposals/README.md). Pubblicazione remota, revisione
 di terzi e adozione come standard richiedono evidenze esterne distinte.

@@ -8,7 +8,7 @@
 > your applications and workflows through one local OpenAI-compatible API,
 > while you monitor requests, tokens, latency and quotas.**
 
-**Status:** 1.0.0-rc.3 candidate · **Experimental Builder:** disabled by
+**Status:** 1.0.0-rc.4 candidate · **Experimental Builder:** disabled by
 default · **Verified:** Linux; Windows/WSL2 and macOS pending · **Dashboard:** English /
 Italian / Spanish / French
 
