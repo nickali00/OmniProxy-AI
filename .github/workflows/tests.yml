@@ -15,7 +15,8 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Match the verified native media toolchain; avoid silent distro upgrades.
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:

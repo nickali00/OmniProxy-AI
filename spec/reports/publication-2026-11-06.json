@@ -43,6 +43,9 @@
     "initial_remote_run": "https://github.com/nickali00/OmniProxy-AI/actions/runs/42243950514",
     "initial_result": "267 passed; 16 failed because PDF/OCR/audio/video system tools were missing on the runner",
     "correction": "Install the same poppler-utils, Tesseract, ffmpeg and espeak-ng tools used by the gateway image; rerun the full suite without skipping media tests",
-    "application_source_unchanged": true
+    "application_source_unchanged": true,
+    "second_remote_run": "https://github.com/nickali00/OmniProxy-AI/actions/runs/42244399307",
+    "second_result": "276 passed; seven speech generation failures with Ubuntu 26.04 native packages",
+    "runner": "Pinned ubuntu-24.04 to match the natively verified media toolchain; Ubuntu 26.04 speech remains unqualified"
   }
 }

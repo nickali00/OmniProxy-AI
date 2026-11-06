@@ -95,3 +95,9 @@ del push. Verificare infine che il commit remoto coincida con quello locale.
 La CI installa anche `poppler-utils`, Tesseract (eng/ita), `ffmpeg` ed
 `espeak-ng`, come l'immagine gateway: i test multimediali eseguono veri
 estrattori e sintetizzatori. Installare soltanto i requisiti Python non basta.
+
+Il runner è fissato a Ubuntu 24.04, distribuzione della verifica nativa.
+`ubuntu-latest` è passato a 26.04: con i pacchetti multimediali installati,
+276 test passano ma sette prove di sintesi vocale falliscono nel worker
+limitato. La sintesi su Ubuntu 26.04 resta non qualificata; non aumentare i
+limiti del worker né saltare test soltanto per ottenere una CI verde.

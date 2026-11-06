@@ -40,3 +40,12 @@ For independent reports collect platform, protocol/version, enabled subset,
 sanitized conformance output, reproducible use case and consent to list it.
 Track pass rates, upgrade failures, latency distributions and independent
 contributors from evidence rather than invented counters or targets.
+
+## Native media toolchain
+
+CI is pinned to Ubuntu 24.04, matching the verified native server toolchain.
+PDF/OCR/video/audio tests require the system packages listed in the workflow
+and gateway Dockerfile. Ubuntu 26.04 native speech is not qualified: its
+installed toolchain passed 276 tests but failed seven bounded speech-generation
+checks. This does not change the worker limits or skip media tests. Do not
+infer support for every Linux distribution from the verified Linux runs.
