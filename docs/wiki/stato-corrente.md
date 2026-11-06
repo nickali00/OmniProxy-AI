@@ -1,5 +1,24 @@
 # Stato corrente
 
+## Gateway Docker aggiornato a rc.4 — 6 novembre 2026
+
+Ricostruito e ricreato soltanto il gateway, con configurazioni e volumi
+esistenti. HTTPS operativo e versione rc.4 verificata nelle risposte API.
+Confronto prima/dopo: hash invariati per 21 tabelle di configurazione,
+credenziali/stati/limiti, profili, gruppi, identità e sessioni. File privati,
+configurazioni client, certificato TLS, dipendenze runtime e altri container
+conservati. Backup SQLite coerente e immagine precedente mantenuti privati.
+
+Gate: 283 Python; immagine non privilegiata/read-only con dati effimeri,
+media, budget, gruppi, team e Ollama reale; doppia migrazione su copia con
+hash di 42 tabelle. HTTPS reale: TLS, cookie, CSRF, rifiuto HTTP e SSE con
+chiave esistente. WikiNick/Mappe tramite adattatore installato, upload e
+tutti i sei formati vocali inclusi FLAC. n8n normale/SSE dal suo container;
+discovery dei nove profili robot attivi e rifiuto di quello già disabilitato.
+Nessuna riattivazione di chiavi né comando ai robot. Account come prima;
+Claude nativo resta non collegato.
+[Rapporto](../../spec/reports/docker-rc4-2026-11-06.json).
+
 ## Candidato pubblico 1.0.0-rc.4 — 6 novembre 2026
 
 Il candidato rc.4 limita anche i thread di FFmpeg nel worker vocale, senza

@@ -101,3 +101,13 @@ Il runner è fissato a Ubuntu 24.04, distribuzione della verifica nativa.
 276 test passano ma sette prove di sintesi vocale falliscono nel worker
 limitato. La sintesi su Ubuntu 26.04 resta non qualificata; non aumentare i
 limiti del worker né saltare test soltanto per ottenere una CI verde.
+
+## Gate dell'aggiornamento Docker rc.4
+
+Il [rapporto di distribuzione](../../spec/reports/docker-rc4-2026-11-06.json)
+registra build, smoke read-only, doppia migrazione su backup e controlli
+HTTPS/client. Per un aggiornamento conservativo registrare prima gli hash
+dei file privati, dei campi di configurazione DB, delle variabili e dei
+mount; dopo confrontarli escludendo soltanto i normali dati di utilizzo.
+Conservare immagine precedente e backup coerente in ambito privato. Le prove
+vocali nell'immagine devono includere FLAC oltre a WAV, MP3, Opus, AAC e PCM.

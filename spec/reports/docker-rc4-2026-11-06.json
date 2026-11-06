@@ -1,0 +1,160 @@
+{
+  "date": "2026-11-06",
+  "release": "1.0.0-rc.4",
+  "source_commit": "a64d237",
+  "gateway_image": "sha256:bf3a7352ed31a52c05b23ae689e2b7c4c97d5bb448c368371196925d3683f92d",
+  "scope": "gateway-only Docker update with existing private configuration and persistent volumes",
+  "deployment": {
+    "gateway_healthy": true,
+    "verified_https_health": true,
+    "all_existing_service_states_preserved": true,
+    "other_containers_not_recreated": true,
+    "gateway_only_unix_socket_preserved": true,
+    "old_image_retained_for_rollback": true,
+    "consistent_sqlite_backup_integrity_verified": true
+  },
+  "preservation": {
+    "configuration_tables_identical": 21,
+    "groups_identical": true,
+    "identity_sessions_tokens_and_expiry_identical": true,
+    "private_config_and_volume_files_identical": true,
+    "client_configuration_files_identical": true,
+    "runtime_dependencies_identical": true,
+    "other_service_container_ids_unchanged": true,
+    "gateway_env_mounts_and_https_socket_preserved": true,
+    "tls_certificate_identical": true,
+    "integrity_foreign_keys": true,
+    "all_services_healthy": true,
+    "passed": true
+  },
+  "python_full_tests": 283,
+  "image_smoke": {
+    "scope": "built_image_ephemeral_database",
+    "non_root_read_only": true,
+    "image_pdf_video_parsers": true,
+    "speech_generation": true,
+    "input_output_limits": true,
+    "real_ollama": true,
+    "budget_accounted": true,
+    "citations": true,
+    "api_groups_keep_keys_valid": true,
+    "team_identity_profile_key_revocation": true,
+    "passed": true,
+    "release": "1.0.0-rc.4",
+    "real_speech_formats": [
+      "wav",
+      "mp3",
+      "flac",
+      "opus",
+      "aac",
+      "pcm"
+    ]
+  },
+  "upgrade_rehearsal": {
+    "scope": "temporary_copy_of_read_only_backup",
+    "migration_passes": 2,
+    "old_tables_verified_by_row_hash": 42,
+    "integrity_and_foreign_keys": true,
+    "passed": true
+  },
+  "https_boundary": {
+    "scope": "https_boundary",
+    "passed": true,
+    "tls_verified": true,
+    "accepted_protocols": [
+      "TLSv1.2",
+      "TLSv1.3"
+    ],
+    "rejected_protocols": [
+      "TLSv1",
+      "TLSv1_1"
+    ],
+    "unauthenticated_admin_denied": true,
+    "response_headers_verified": true,
+    "application_key_still_valid": true,
+    "real_sse_over_verified_tls": true,
+    "secure_browser_session": true,
+    "csrf_rejected": true,
+    "http_browser_redirect_and_api_refusal": true
+  },
+  "live_client_checks": {
+    "existing_wiki_map_keys_valid": true,
+    "installed_wiki_map_adapter_real_completions": true,
+    "real_speech_formats_over_https": [
+      "wav",
+      "mp3",
+      "flac",
+      "opus",
+      "aac",
+      "pcm"
+    ],
+    "real_upload_extract_delete": true,
+    "robot_profile_discovery": [
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 401,
+        "intentionally_disabled": true
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      },
+      {
+        "status": 200,
+        "intentionally_disabled": false
+      }
+    ],
+    "no_robot_commands_sent": true,
+    "provider_connection_states_preserved": true,
+    "passed": true
+  },
+  "n8n_existing_credentials": [
+    {
+      "credential_index": 0,
+      "intentionally_disabled": true,
+      "HTTP_status": 401
+    },
+    {
+      "credential_index": 1,
+      "models": true,
+      "chat": true,
+      "SSE": true,
+      "TLS_verification": true
+    }
+  ],
+  "limitations": [
+    "Only the gateway service was updated; native Claude is still not connected and was not reauthenticated.",
+    "Ubuntu 26.04 native speech remains unqualified; the deployed container runtime passed all six speech formats.",
+    "Optional Transformers image advisories remain documented; that package is absent from the deployed gateway.",
+    "No physical robot commands or graphical browser tests were performed.",
+    "These checks cover the documented paths and do not certify every provider/model combination."
+  ],
+  "publication_privacy": "No endpoints, personal paths, key values, credential IDs, token metadata, certificate fingerprints or backup locations included."
+}
